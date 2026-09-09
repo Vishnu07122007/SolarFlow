@@ -1,0 +1,421 @@
+{
+  "generated_at_utc": "2026-09-07T10:44:55.897538+00:00",
+  "schema_version": 3,
+  "scope": "Uttar Pradesh",
+  "measured_source": "LOCAL Mendeley/Grid-India Excel files",
+  "mendeley_dir": "C:\\Users\\HP\\Desktop\\solar pv forecasting grok up\\data\\mendeley",
+  "mendeley_files": [
+    "April 2022.xlsx",
+    "April 2023.xlsx",
+    "August 2022.xlsx",
+    "August 2023.xlsx",
+    "December 2021.xlsx",
+    "December 2022.xlsx",
+    "December 2023.xlsx",
+    "February 2022.xlsx",
+    "February 2023.xlsx",
+    "January 2022.xlsx",
+    "January 2023.xlsx",
+    "January 2024- June 2025.xlsx",
+    "July 2022.xlsx",
+    "July 2023.xlsx",
+    "June 2022.xlsx",
+    "June 2023.xlsx",
+    "March 2022.xlsx",
+    "March 2023.xlsx",
+    "May 2022.xlsx",
+    "May 2023.xlsx",
+    "November 2021.xlsx",
+    "November 2022.xlsx",
+    "Novemeber 2023.xlsx",
+    "October 2021.xlsx",
+    "October 2022.xlsx",
+    "October 2023.xlsx",
+    "September 2021.xlsx",
+    "September 2022.xlsx",
+    "September 2023.xlsx"
+  ],
+  "nasa_dir": "C:\\Users\\HP\\Desktop\\solar pv forecasting grok up\\data\\nasa\\up",
+  "nasa_files_loaded": 36,
+  "up_sw_dir": "C:\\Users\\HP\\Desktop\\solar pv forecasting grok up\\data\\up_sw",
+  "up_sw_variables": [
+    "humid",
+    "pressure",
+    "rain",
+    "solar",
+    "temp",
+    "wind_dir",
+    "wind_speed"
+  ],
+  "location_sources": {
+    "Lucknow": [
+      "open_meteo_primary"
+    ],
+    "Kanpur": [
+      "open_meteo_primary"
+    ],
+    "Varanasi": [
+      "open_meteo_primary",
+      "up_sw_ghi_soft_calib_30pct"
+    ],
+    "Prayagraj": [
+      "open_meteo_primary"
+    ],
+    "Agra": [
+      "open_meteo_primary"
+    ],
+    "Meerut": [
+      "open_meteo_primary"
+    ],
+    "Ghaziabad": [
+      "open_meteo_primary"
+    ],
+    "Noida": [
+      "open_meteo_primary"
+    ],
+    "Bareilly": [
+      "open_meteo_primary"
+    ],
+    "Moradabad": [
+      "open_meteo_primary"
+    ],
+    "Aligarh": [
+      "open_meteo_primary"
+    ],
+    "Saharanpur": [
+      "open_meteo_primary"
+    ],
+    "Gorakhpur": [
+      "open_meteo_primary"
+    ],
+    "Jhansi": [
+      "open_meteo_primary"
+    ],
+    "Firozabad": [
+      "open_meteo_primary"
+    ],
+    "Muzaffarnagar": [
+      "open_meteo_primary"
+    ],
+    "Mathura": [
+      "open_meteo_primary"
+    ],
+    "Ayodhya": [
+      "open_meteo_primary"
+    ],
+    "Sitapur": [
+      "open_meteo_primary"
+    ],
+    "Unnao": [
+      "open_meteo_primary"
+    ],
+    "Raebareli": [
+      "open_meteo_primary"
+    ],
+    "Sultanpur": [
+      "open_meteo_primary"
+    ],
+    "Jaunpur": [
+      "open_meteo_primary"
+    ],
+    "Azamgarh": [
+      "open_meteo_primary"
+    ],
+    "Ballia": [
+      "open_meteo_primary"
+    ],
+    "Mirzapur": [
+      "open_meteo_primary",
+      "up_sw_ghi_soft_calib_30pct"
+    ],
+    "Sonbhadra": [
+      "open_meteo_primary",
+      "up_sw_ghi_soft_calib_30pct"
+    ],
+    "Lalitpur": [
+      "open_meteo_primary"
+    ],
+    "Hardoi": [
+      "open_meteo_primary"
+    ],
+    "Shahjahanpur": [
+      "open_meteo_primary"
+    ],
+    "Pilibhit": [
+      "open_meteo_primary"
+    ],
+    "Budaun": [
+      "open_meteo_primary"
+    ],
+    "Etawah": [
+      "open_meteo_primary"
+    ],
+    "Mainpuri": [
+      "open_meteo_primary"
+    ],
+    "Farrukhabad": [
+      "open_meteo_primary"
+    ],
+    "Kannauj": [
+      "open_meteo_primary"
+    ],
+    "Fatehpur": [
+      "open_meteo_primary"
+    ],
+    "Banda": [
+      "open_meteo_primary"
+    ],
+    "Hamirpur": [
+      "open_meteo_primary"
+    ],
+    "Mahoba": [
+      "open_meteo_primary"
+    ],
+    "Chitrakoot": [
+      "open_meteo_primary"
+    ],
+    "Kaushambi": [
+      "open_meteo_primary"
+    ],
+    "Pratapgarh": [
+      "open_meteo_primary"
+    ],
+    "Amethi": [
+      "open_meteo_primary"
+    ],
+    "Barabanki": [
+      "open_meteo_primary"
+    ],
+    "Gonda": [
+      "open_meteo_primary"
+    ],
+    "Bahraich": [
+      "open_meteo_primary"
+    ],
+    "Balrampur": [
+      "open_meteo_primary"
+    ],
+    "Shrawasti": [
+      "open_meteo_primary"
+    ],
+    "Siddharthnagar": [
+      "open_meteo_primary"
+    ],
+    "Basti": [
+      "open_meteo_primary"
+    ],
+    "Sant Kabir Nagar": [
+      "open_meteo_primary"
+    ],
+    "Maharajganj": [
+      "open_meteo_primary"
+    ],
+    "Kushinagar": [
+      "open_meteo_primary"
+    ],
+    "Deoria": [
+      "open_meteo_primary"
+    ],
+    "Mau": [
+      "open_meteo_primary"
+    ],
+    "Ghazipur": [
+      "open_meteo_primary"
+    ],
+    "Chandauli": [
+      "open_meteo_primary"
+    ],
+    "Bhadohi": [
+      "open_meteo_primary"
+    ],
+    "Hapur": [
+      "open_meteo_primary"
+    ],
+    "Bulandshahr": [
+      "open_meteo_primary"
+    ],
+    "Gautam Buddha Nagar": [
+      "open_meteo_primary"
+    ],
+    "Bagpat": [
+      "open_meteo_primary"
+    ],
+    "Shamli": [
+      "open_meteo_primary"
+    ],
+    "Bijnor": [
+      "open_meteo_primary"
+    ],
+    "Amroha": [
+      "open_meteo_primary"
+    ],
+    "Sambhal": [
+      "open_meteo_primary"
+    ],
+    "Rampur": [
+      "open_meteo_primary"
+    ],
+    "Kasganj": [
+      "open_meteo_primary"
+    ],
+    "Etah": [
+      "open_meteo_primary"
+    ],
+    "Hathras": [
+      "open_meteo_primary"
+    ],
+    "Auraiya": [
+      "open_meteo_primary"
+    ],
+    "Jalaun": [
+      "open_meteo_primary"
+    ],
+    "Kanpur Dehat": [
+      "open_meteo_primary"
+    ],
+    "Kheri": [
+      "open_meteo_primary"
+    ]
+  },
+  "features": [
+    "poa_global",
+    "poa_direct",
+    "poa_diffuse",
+    "solar_zenith",
+    "solar_azimuth",
+    "aoi",
+    "cell_temp",
+    "temperature_2m",
+    "relative_humidity_2m",
+    "dew_point_2m",
+    "precipitation",
+    "rain",
+    "showers",
+    "cloud_cover",
+    "windspeed_10m",
+    "windgusts_10m",
+    "surface_pressure",
+    "visibility",
+    "vapour_pressure_deficit",
+    "shortwave_radiation",
+    "direct_radiation",
+    "diffuse_radiation",
+    "direct_normal_irradiance",
+    "sunshine_duration",
+    "pm10",
+    "pm2_5",
+    "dust",
+    "european_aqi",
+    "elevation_m",
+    "soiling_proxy",
+    "hour_sin",
+    "hour_cos",
+    "doy_sin",
+    "doy_cos",
+    "is_day"
+  ],
+  "measured_start": "2021-09-01 00:00:00+05:30",
+  "measured_end": "2025-06-24 23:00:00+05:30",
+  "measured_hourly_rows": 33432,
+  "normalization_reference_mw_99_5": 61913.65890000002,
+  "locations": [
+    "Agra",
+    "Aligarh",
+    "Amethi",
+    "Amroha",
+    "Auraiya",
+    "Ayodhya",
+    "Azamgarh",
+    "Bagpat",
+    "Bahraich",
+    "Ballia",
+    "Balrampur",
+    "Banda",
+    "Barabanki",
+    "Bareilly",
+    "Basti",
+    "Bhadohi",
+    "Bijnor",
+    "Budaun",
+    "Bulandshahr",
+    "Chandauli",
+    "Chitrakoot",
+    "Deoria",
+    "Etah",
+    "Etawah",
+    "Farrukhabad",
+    "Fatehpur",
+    "Firozabad",
+    "Gautam Buddha Nagar",
+    "Ghaziabad",
+    "Ghazipur",
+    "Gonda",
+    "Gorakhpur",
+    "Hamirpur",
+    "Hapur",
+    "Hardoi",
+    "Hathras",
+    "Jalaun",
+    "Jaunpur",
+    "Jhansi",
+    "Kannauj",
+    "Kanpur",
+    "Kanpur Dehat",
+    "Kasganj",
+    "Kaushambi",
+    "Kheri",
+    "Kushinagar",
+    "Lalitpur",
+    "Lucknow",
+    "Maharajganj",
+    "Mahoba",
+    "Mainpuri",
+    "Mathura",
+    "Mau",
+    "Meerut",
+    "Mirzapur",
+    "Moradabad",
+    "Muzaffarnagar",
+    "Noida",
+    "Pilibhit",
+    "Pratapgarh",
+    "Prayagraj",
+    "Raebareli",
+    "Rampur",
+    "Saharanpur",
+    "Sambhal",
+    "Sant Kabir Nagar",
+    "Shahjahanpur",
+    "Shamli",
+    "Shrawasti",
+    "Siddharthnagar",
+    "Sitapur",
+    "Sonbhadra",
+    "Sultanpur",
+    "Unnao",
+    "Varanasi"
+  ],
+  "model_metrics": {
+    "r2": 0.842716353992893,
+    "mae_5kw_equivalent": 0.3962241152186072,
+    "rmse_5kw_equivalent": 0.6985483789285631,
+    "train_rows": 2005875,
+    "test_rows": 501525,
+    "daytime_mae": 0.731161188386824
+  },
+  "note": "Metrics are chronological hold-out on 5 kW-equivalent target. Not a guaranteed site-level 98% accuracy claim. PRODUCTION ALIGNMENT: train weather PRIMARY=Open-Meteo (same as app forecasts). NASA=fallback only. UP-SW optional soft GHI calibration (30%) near stations.",
+  "train_serve_policy": {
+    "inference_weather": "Open-Meteo forecast API (app.py)",
+    "train_weather_primary": "Open-Meteo archive",
+    "train_weather_fallback": "NASA POWER local CSV",
+    "up_sw_role": "soft GHI calibration only when Open-Meteo primary",
+    "sample_weights": {
+      "open_meteo": 1.0,
+      "nasa_fallback": 0.4,
+      "daytime_mult": 1.25,
+      "night_mult": 0.55,
+      "note": "Weights only at train time; no source_id feature at inference (avoids serve bias)"
+    },
+    "inference_stack": "physics (pvlib) + ML + dynamic blend in app.py/solar_engine.py"
+  }
+}

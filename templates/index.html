@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>SolarFlow Dashboard</title>
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+    }
+    @media (min-width: 1024px) {
+      body { font-size: 15px; }
+    }
+
+    .lab {
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+    @media (min-width: 1024px) {
+      .lab { font-size: 12px; }
+    }
+
+    .inp {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: #e2e8f0;
+      outline: none;
+    }
+    select.inp {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%94a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+      cursor: pointer;
+    }
+    select.inp option {
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    /* Searchable scrollable dropdown (panel / inverter) */
+    .sdd { position: relative; width: 100%; }
+    .sdd-input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 12px 36px 12px 14px;
+      font-size: 14px;
+      color: #e2e8f0;
+      outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%94a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+    }
+    .sdd-input:focus { border-color: #fbbf24; }
+    .sdd-menu {
+      position: absolute;
+      z-index: 60;
+      left: 0; right: 0;
+      top: calc(100% + 4px);
+      max-height: 240px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .sdd-item {
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #e2e8f0;
+      cursor: pointer;
+      border-bottom: 1px solid #1e293b;
+    }
+    .sdd-item:last-child { border-bottom: none; }
+    .sdd-item:hover, .sdd-item.active { background: #1e293b; }
+    .sdd-empty { padding: 12px 14px; font-size: 12px; color: #94a3b8; }
+    @media (min-width: 1024px) {
+      .inp { font-size: 15px; padding: 14px 16px; }
+      select.inp { padding-right: 40px; }
+      .sdd-input { font-size: 15px; padding: 14px 40px 14px 16px; }
+      .sdd-menu { max-height: 280px; }
+    }
+
+    .inp:focus {
+      border-color: #fbbf24;
+    }
+
+    /* Number inputs: no spinner; wheel must not change value */
+    input[type="number"] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .muted {
+      background: #020617;
+      color: #34d399;
+    }
+
+    .err {
+      display: block;
+      min-height: 15px;
+      font-size: 10px;
+      margin-top: 4px;
+      color: #ef4444;
+    }
+
+    .tinybadge {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      color: #fbbf24;
+      background: #fbbf2418;
+      border: 1px solid #fbbf2438;
+      padding: 3px 7px;
+      border-radius: 999px;
+    }
+
+    .tinybadge.sky {
+      color: #38bdf8;
+      background: #38bdf818;
+      border-color: #38bdf838;
+    }
+
+    .btn-disabled {
+      background: #334155;
+      color: #94a3b8;
+      font-weight: 800;
+      padding: 14px 24px;
+      border-radius: 16px;
+      font-size: 12px;
+      cursor: not-allowed;
+    }
+
+    .card {
+      background: #1e293bcc;
+      border: 1px solid #33415599;
+      border-radius: 18px;
+      padding: 16px 16px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .14);
+    }
+
+    .kpilab {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .kpi {
+      font-size: 24px;
+      font-weight: 800;
+      margin-top: 6px;
+      line-height: 1.15;
+    }
+    .kpisub {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 6px;
+      line-height: 1.35;
+    }
+    @media (min-width: 768px) {
+      .kpi { font-size: 24px; }
+      .kpilab { font-size: 11px; }
+      .kpisub { font-size: 11px; }
+      .card { padding: 14px 16px; }
+    }
+    @media (min-width: 1024px) {
+      .kpi { font-size: 28px; }
+      .kpilab { font-size: 12px; }
+      .kpisub { font-size: 12px; }
+      .card { padding: 14px 16px; border-radius: 20px; }
+    }
+        /* 1. Container: Target the entire scrollbar area */
+    ::-webkit-scrollbar {
+      height: 8px;             /* Height for horizontal scrollbars */
+      width: 12px;              /* Width for vertical scrollbars */
+      background: #09002a;      /* White background matching your track container */
+    }
+
+    /* 2. Track: Target the track (progress bar) behind the thumb */
+    ::-webkit-scrollbar-track {
+      background: #09002a;      
+      border-radius: 6px;
+    }
+
+    /* 3. Thumb: Target the draggable scrolling handle */
+    ::-webkit-scrollbar-thumb {
+      background: #0d1334;      /* Grey color matching your image */
+      border-radius: 6px;       /* Rounded pill shape */
+      border: 2px solid #0d1334; /* Adds padding space around the thumb */
+    }
+
+    /* Hover state for the thumb */
+    ::-webkit-scrollbar-thumb:hover {
+      background: #a6a7ab;      
+    }
+
+    /* 4. Buttons: Target the directional arrows on both ends */
+    ::-webkit-scrollbar-button:single-button {
+      background-color: #00052c;
+      display: NONE;
+      border-style: solid;
+      height: 12px;
+      width: 12px;
+    }
+    /* Horizontal Left Arrow Button */
+    ::-webkit-scrollbar-button:single-button:horizontal:decrement {
+      display:none;
+    
+    }
+    /* Horizontal Right Arrow Button */
+    ::-webkit-scrollbar-button:single-button:horizontal:increment {
+      display:none;
+    }
+
+
+    .h-scroll {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .h-scroll > * {
+      flex: 0 0 auto;
+    }
+    .kpi-scroll-card {
+      min-width: 160px;
+      max-width: 220px;
+    }
+    .day-scroll-card {
+      min-width: 155px;
+      max-width: 168px;
+      border: 2px solid #334155;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.9);
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      padding: 12px 12px 10px;
+    }
+    .day-scroll-card:hover {
+      border-color: #fbbf24;
+      box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
+      background: rgba(15, 23, 42, 0.98);
+    }
+    .day-scroll-card.is-active {
+      border-color: #fbbf24;
+      box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.5);
+      background: rgba(30, 41, 59, 0.98);
+    }
+    .day-card-kwh {
+      font-size: 1.65rem;
+      line-height: 1.1;
+      font-weight: 800;
+      color: #fbbf24;
+      letter-spacing: -0.02em;
+      margin-top: 4px;
+    }
+    .day-card-kwh span {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-left: 2px;
+    }
+    @media (min-width: 1024px) {
+      .kpi-scroll-card { min-width: 160px; max-width: 276px; }
+      .day-scroll-card { min-width: 156px; max-width: 176px; }
+      .day-card-kwh { font-size: 1.8rem; }
+    }
+
+    /* Chart: no double-tap zoom; better touch */
+    #plotly_chart, #plotly_chart .js-plotly-plot, #plotly_chart .plotly {
+      touch-action: pan-y;
+      -ms-touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #chart_touch_readout {
+      font-size: 12px;
+      color: #cbd5e1;
+      margin-top: 10px;
+      min-height: 1.4em;
+      line-height: 1.4;
+    }
+    @media (min-width: 1024px) {
+      #chart_touch_readout { font-size: 13px; }
+    }
+    /* Hourly table: always scrollable on small screens */
+    #hourly_wrap {
+      max-height: min(55vh, 520px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      
+    }
+    @media (min-width: 1024px) {
+      #hourly_wrap { max-height: 560px; }
+    }
+
+    .amber {
+      color: #fbbf24;
+    }
+    /* Prevent flash of full setup form before summary/edit mode is decided */
+    body.sf-booting #setup_form_section,
+    body.sf-booting #system_summary_section,
+    body.sf-booting #forecast_output_block {
+      visibility: hidden !important;
+    }
+
+    .sky {
+      color: #60a5fa;
+    }
+
+    .emerald {
+      color: #34d399;
+    }
+
+    .teal {
+      color: #2dd4bf;
+    }
+
+    .th {
+      padding: 12px;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .shade-box {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .shade-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .shade-chip {
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .shade-chip.active {
+      background: #fbbf2422;
+      border-color: #fbbf24;
+      color: #fbbf24;
+      font-weight: 700;
+    }
+
+    #map {
+      width: 100%;
+      height: min(72vh, 640px);
+      min-height: 420px;
+      border-radius: 16px;
+      background: #0f172a;
+    }
+    #map_section.fullscreen-map #map {
+      height: 78vh;
+      min-height: 480px;
+    }
+  </style>
+  <script>
+    window.__gmapsReady = false;
+    function initGoogleMapsCallback() {
+      window.__gmapsReady = true;
+      document.dispatchEvent(new Event('gmaps-ready'));
+    }
+  </script>
+</head>
+
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 sm:p-6 lg:p-10 sf-booting">
+
+  <div id="global_loader" class="hidden fixed inset-0 z-[9999] bg-black/55 flex items-center justify-center">
+    <div class="bg-slate-900 border border-slate-600 rounded-2xl px-6 py-5 text-center shadow-2xl">
+      <div class="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+      <div id="loader_msg" class="text-sm text-amber-300 font-semibold">Please wait…</div>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto space-y-7">
+    <header
+      class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-800/80 p-6 rounded-3xl border border-slate-700/60 shadow-2xl gap-4">
+      <div class="flex items-center gap-4">
+        <div class="w-4 h-4 rounded-full bg-amber-400 animate-pulse"></div>
+        <div>
+          <h1 class="text-2xl font-extrabold text-amber">SolarFlow</h1>
+          <p class="text-xs text-slate-400 mt-1">Welcome, <span class="text-white font-semibold">{{ user.name
+              }}</span></p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="/history?token={{token}}"
+          class="px-4 py-2 bg-slate-900 text-xs text-sky-400 rounded-2xl border border-slate-700">📊 History</a>
+        <a href="/profile?token={{token}}"
+          class="px-4 py-2 bg-slate-900 text-xs text-amber-400 rounded-2xl border border-slate-700">Profile</a>
+        <a href="/logout?role=user&token={{token}}"
+          class="px-4 py-2 bg-red-500/10 text-xs text-red-400 font-bold rounded-2xl border border-red-500/30">Sign
+          Out</a>
+      </div>
+    </header>
+
+    <section id="weather_banner"
+      class="hidden bg-slate-800/80 border border-blue-500/25 rounded-2xl px-3 py-2.5 shadow-lg">
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <span id="wb_icon" class="text-xl">🌤️</span>
+        <div class="min-w-0 flex-1">
+          <p id="wb_location" class="text-xs font-bold text-white truncate">Live weather</p>
+          <p id="wb_desc" class="text-[10px] text-slate-400 truncate">—</p>
+        </div>
+        <div class="flex flex-wrap gap-1.5 text-[10px]" id="live_weather_grid"></div>
+      </div>
+    </section>
+
+    <!-- Compact summary when system already saved (per-user) -->
+    <section id="system_summary_section" class="hidden bg-slate-800/80 rounded-2xl border border-slate-700/60 p-3 sm:p-4 shadow-lg">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <div>
+          <h2 class="text-sm font-bold text-white">Your system</h2>
+          <p class="text-[10px] text-slate-400">saved profile</p>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" onclick="enterEditMode()"
+            class="text-[10px] px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-600 text-amber-400 font-semibold">
+            ✎ Edit
+          </button>
+          <button type="button" id="summary_refresh_btn" onclick="refreshForecast()"
+            class="text-[10px] px-2.5 py-1.5 rounded-lg bg-amber-400 text-slate-900 font-bold">
+            ↻ Refresh
+          </button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+        <div class="bg-slate-900/50 border border-slate-700/40 rounded-xl px-2.5 py-2">
+          <p class="text-[9px] uppercase font-bold text-slate-500">Location</p>
+          <p id="sum_loc" class="font-semibold text-emerald-400 truncate">--</p>
+          <p id="sum_coords" class="text-[10px] text-slate-500 truncate">--</p>
+        </div>
+        <div class="bg-slate-900/50 border border-slate-700/40 rounded-xl px-2.5 py-2">
+          <p class="text-[9px] uppercase font-bold text-slate-500">Hardware</p>
+          <p id="sum_panel" class="font-semibold text-amber-400 truncate">--</p>
+          <p id="sum_inv" class="text-blue-400 truncate">--</p>
+        </div>
+        <div class="bg-slate-900/50 border border-slate-700/40 rounded-xl px-2.5 py-2">
+          <p class="text-[9px] uppercase font-bold text-slate-500">Setup</p>
+          <p id="sum_meta" class="text-slate-200 truncate">--</p>
+          <p id="sum_calib" class="text-[10px] text-violet-300 mt-0.5">Calibration: 1.000×</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Hidden until onload decides summary vs first-time form (avoids form flash) -->
+    <section id="setup_form_section" class="hidden bg-slate-800/80 rounded-3xl border border-slate-700/60 p-6 shadow-2xl space-y-6">
+      <div class="border-b border-slate-700/60 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 class="font-bold" id="setup_form_title">Verified Location & System Setup</h2>
+          
+        </div>
+        <button type="button" id="btn_cancel_edit" onclick="cancelEditMode()"
+          class="hidden text-xs px-4 py-2 rounded-xl bg-slate-900 border border-slate-600 text-slate-300">
+          Cancel edit
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div>
+          <label class="lab">Pincode <span class="text-red-400">*</span></label>
+          <input type="text" id="pincode_input" maxlength="6" inputmode="numeric" placeholder="UP pin e.g. 226001"
+            oninput="onPincodeInput()" class="inp">
+          <span id="err_pincode" class="err"></span>
+        </div>
+        <div>
+          <label class="lab">State</label>
+          <input id="state_select" readonly class="inp muted" placeholder="Waiting...">
+        </div>
+        <div>
+          <label class="lab">District</label>
+          <input id="district_select" readonly class="inp muted" placeholder="Waiting...">
+        </div>
+        <div class="relative">
+          <label class="lab">Locality / Landmark <span class="text-red-400">*</span></label>
+          <input id="city_search" disabled oninput="debounceLiveSearch(this.value);validateForm()"
+            placeholder="Type 3+ letters (Google search)…" class="inp" autocomplete="off">
+          <div id="city_dropdown"
+            class="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-h-56 overflow-y-auto z-50 hidden">
+          </div>
+          <span id="err_city" class="err"></span>
+        </div>
+      </div>
+
+      <div id="map_controls" class="hidden flex flex-wrap gap-3 items-center">
+        <button type="button" id="btn_open_map" onclick="openMap()"
+          class="text-xs bg-blue-600/20 border border-blue-500/40 text-blue-400 px-4 py-2 rounded-xl">📍 Choose on
+          Google Map (this pincode only)</button>
+        <button type="button" id="btn_close_map" onclick="closeMap()"
+          class="hidden text-xs bg-slate-700 border border-slate-600 text-slate-300 px-4 py-2 rounded-xl">✕ Close
+          Map</button>
+        <button type="button" onclick="useCurrentGPS()"
+          class="text-xs bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 px-4 py-2 rounded-xl">📍 Use My
+          Current GPS</button>
+      </div>
+      <div id="lock_status" class="text-xs text-emerald-400 font-semibold min-h-[18px]"></div>
+
+      <div id="map_section" class="hidden space-y-3 fullscreen-map">
+        <p class="text-xs text-slate-300 font-semibold">Full-size map for this pincode. Yellow box = pin area.
+          Marker can only be placed <b>inside</b> the box. Pan/zoom freely to see all streets.</p>
+        <div id="map" class="border border-slate-700 overflow-hidden rounded-xl w-full"></div>
+        <div class="flex flex-wrap gap-3 items-center">
+          <button type="button" onclick="fetchLocOnMap()"
+            class="text-xs bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-semibold px-4 py-2 rounded-xl">📍
+            Fetch my location</button>
+          <button type="button" onclick="confirmMapLocation()"
+            class="text-xs bg-amber-400 text-slate-900 font-bold px-4 py-2 rounded-xl">✓ Confirm Location & Close
+            Map</button>
+          <span id="map_status" class="text-emerald-400 text-xs font-semibold"></span>
+        </div>
+      </div>
+
+      <input type="hidden" id="selected_lat">
+      <input type="hidden" id="selected_lon">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
+        <div>
+          <label class="lab">Solar Panel Model <span class="text-red-400">*</span></label>
+          <div class="sdd" id="panel_sdd">
+            <input type="hidden" id="panel_search" value="">
+            <input type="text" id="panel_search_display" class="sdd-input" autocomplete="off"
+              placeholder="Search panel model…"
+              onfocus="openSdd('panel')"
+              oninput="filterSdd('panel', this.value)"
+              onkeydown="sddKey('panel', event)">
+            <div id="panel_sdd_menu" class="sdd-menu hidden"></div>
+          </div>
+          <div id="panel_badge" class="tinybadge">-- kW DC</div>
+        </div>
+        <div>
+          <label class="lab">Panel Count <span class="text-red-400">*</span></label>
+          <input type="number" id="num_panels" min="1" max="5000" oninput="updateCapacityEstimates();validateForm()"
+            class="inp">
+        </div>
+        <div>
+          <label class="lab">Inverter Model <span class="text-red-400">*</span></label>
+          <div class="sdd" id="inverter_sdd">
+            <input type="hidden" id="inverter_search" value="">
+            <input type="text" id="inverter_search_display" class="sdd-input" autocomplete="off"
+              placeholder="Search inverter model…"
+              onfocus="openSdd('inverter')"
+              oninput="filterSdd('inverter', this.value)"
+              onkeydown="sddKey('inverter', event)">
+            <div id="inverter_sdd_menu" class="sdd-menu hidden"></div>
+          </div>
+          <div id="inv_badge" class="tinybadge sky">-- kW AC</div>
+        </div>
+        <div>
+          <label class="lab">Inverter Count <span class="text-red-400">*</span></label>
+          <input type="number" id="num_inverters" min="1" max="100" oninput="updateCapacityEstimates();validateForm()"
+            class="inp">
+        </div>
+        <div>
+          <label class="lab">Daily Home Load (kWh) <span class="text-red-400">*</span></label>
+          <input type="number" id="daily_units" min="0.5" step="0.5" placeholder="e.g. 10" oninput="validateForm()"
+            class="inp">
+        </div>
+        <div>
+          <label class="lab">Installation Year <span class="text-red-400">*</span></label>
+          <input type="number" id="installation_year" min="2000" placeholder="2024" oninput="validateForm()"
+            class="inp">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div>
+          <label class="lab">Last Manual Cleaning</label>
+          <input type="date" id="manual_clean_date" class="inp">
+        </div>
+        <div>
+          <label class="lab">Mounting Type <span class="text-red-400">*</span></label>
+          <select id="mounting_type" class="inp" onchange="validateForm()">
+            <option value="rooftop">Rooftop / Close mount</option>
+            <option value="ground">Ground / Ventilated</option>
+          </select>
+        </div>
+        <div>
+          <label class="lab">System Availability (%)</label>
+          <input type="number" id="availability_pct" min="50" max="100" step="0.1" value="98" class="inp">
+        </div>
+      </div>
+
+      <div class="shade-box">
+        <label class="lab">Shading </label>
+        <div class="mb-3">
+          <div class="text-[11px] text-slate-300 font-semibold">Morning 6–10 AM</div>
+          <div class="shade-row">
+            <span class="shade-chip" data-value="morning_light" onclick="toggleShade(this)">Light</span>
+            <span class="shade-chip" data-value="morning_medium" onclick="toggleShade(this)">Buildings</span>
+            <span class="shade-chip" data-value="morning_heavy" onclick="toggleShade(this)">Heavy</span>
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="text-[11px] text-slate-300 font-semibold">Midday 10 AM–2 PM</div>
+          <div class="shade-row">
+            <span class="shade-chip" data-value="midday_light" onclick="toggleShade(this)">Light</span>
+            <span class="shade-chip" data-value="midday_medium" onclick="toggleShade(this)">Buildings</span>
+            <span class="shade-chip" data-value="midday_heavy" onclick="toggleShade(this)">Heavy</span>
+          </div>
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-300 font-semibold">Evening 2–6 PM</div>
+          <div class="shade-row">
+            <span class="shade-chip" data-value="evening_light" onclick="toggleShade(this)">Light</span>
+            <span class="shade-chip" data-value="evening_medium" onclick="toggleShade(this)">Buildings</span>
+            <span class="shade-chip" data-value="evening_heavy" onclick="toggleShade(this)">Heavy</span>
+          </div>
+        </div>
+        <p id="shade_summary" class="text-[10px] text-amber-400 mt-3">No shading selected (clear horizon)</p>
+      </div>
+
+      <div class="border-t border-slate-700/60 pt-5">
+        <button type="button" onclick="toggleAdvanced()" class="w-full flex justify-between items-center text-left">
+          <span><span class="font-bold">Advanced System Inputs</span> <span
+              class="text-xs text-slate-400">(optional)</span></span>
+          <span id="adv_arrow" class="text-slate-400">＋</span>
+        </button>
+        <div id="advanced_panel" class="hidden mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div><label class="lab">Tilt (°)</label><input type="number" id="tilt" min="0" max="90" step="0.1"
+              placeholder="Auto" class="inp"></div>
+          <div><label class="lab">Azimuth (°)</label><input type="number" id="azimuth" min="0" max="360" step="1"
+              placeholder="Auto" class="inp"></div>
+          <div><label class="lab">Albedo</label><input type="number" id="albedo" min="0" max="1" step="0.01"
+              value="0.20" class="inp"></div>
+          <div><label class="lab">Bifacial Gain (%)</label><input type="number" id="bifacial_gain_pct" min="0" max="30"
+              step="0.1" value="0" class="inp"></div>
+          <div><label class="lab">Wiring Loss (%)</label><input type="number" id="wiring_loss_pct" min="0" max="10"
+              step="0.1" value="2" class="inp"></div>
+          <div><label class="lab">Mismatch Loss (%)</label><input type="number" id="mismatch_loss_pct" min="0" max="10"
+              step="0.1" value="1.5" class="inp"></div>
+          <div><label class="lab">Degradation (%/yr)</label><input type="number" id="degradation_pct_per_year" min="0"
+              max="5" step="0.05" value="0.5" class="inp"></div>
+        </div>
+      </div>
+
+      <div class="pt-5 border-t border-slate-700/60 flex flex-col sm:flex-row justify-between gap-4 items-center">
+        <div>
+          <p id="sys_info" class="text-xs font-semibold text-amber-400">Complete required parameters to enable forecast.
+          </p>
+          <p id="clean_info" class="text-[11px] text-slate-400 mt-1"></p>
+        </div>
+        <button id="search_btn" disabled onclick="executeForecast()" class="btn-disabled">Generate Forecast
+          </button>
+      </div>
+    </section>
+
+    <div id="forecast_output_block">
+    <section class="h-scroll lg:flex lg:flex-wrap lg:overflow-visible lg:gap-3 mb-2">
+      <div class="card kpi-scroll-card">
+        <p class="kpilab">7-Day Solar</p>
+        <h3 id="kpi_gen" class="kpi amber">-- kWh</h3>
+        <p id="kpi_gen_sub" class="kpisub">Today: --</p>
+      </div>
+      <div class="card kpi-scroll-card">
+        <p class="kpilab">Home Needs</p>
+        <h3 id="kpi_cons" class="kpi sky">-- kWh</h3>
+        <p id="kpi_cons_sub" class="kpisub">Per day: --</p>
+      </div>
+      <div class="card kpi-scroll-card">
+        <p class="kpilab">Net Balance</p>
+        <h3 id="kpi_net" class="kpi emerald">-- kWh</h3>
+        <p id="kpi_net_sub" class="kpisub">Export / import</p>
+      </div>
+      <div class="card kpi-scroll-card">
+        <p class="kpilab">7-Day CO₂</p>
+        <h3 id="kpi_co2" class="kpi teal">-- kg</h3>
+        <p id="kpi_co2_sub" class="kpisub">≈ -- trees (7d)</p>
+      </div>
+      <div class="card kpi-scroll-card">
+        <p class="kpilab">Trees till now</p>
+        <h3 id="kpi_trees_life" class="kpi text-emerald-300">--</h3>
+        <p id="kpi_trees_sub" class="kpisub">Lifetime CO₂: -- kg</p>
+      </div>
+      <div class="card kpi-scroll-card">
+        <p class="kpilab">Soiling</p>
+        <h3 id="kpi_soiling" class="kpi text-amber-400 text-[20px] md:text-[22px]">--</h3>
+        <p id="kpi_soiling_loss" class="kpisub">--</p>
+        <p id="kpi_cleaning_tip" class="kpisub">--</p>
+      </div>
+    </section>
+
+    <section class="card mb-2">
+      <div class="flex flex-wrap justify-between gap-2 items-center">
+        <div>
+          <h3 class="font-bold">7-Day Forecast Overview</h3>
+          <p class="text-xs text-slate-400 mt-1">Tap a day for hourly detail</p>
+        </div>
+      </div>
+      <div id="day_cards" class="h-scroll mt-4"></div>
+    </section>
+
+    <!-- Hourly schedule (scrollable) + chart below -->
+    <section class="card p-0 overflow-hidden ">
+      <div class="px-4 py-3 bg-slate-900/50 border-b border-slate-700/60 flex flex-wrap justify-between gap-2 items-center">
+        <h3 id="schedule_title" class="font-bold text-sm uppercase tracking-wider">Hourly Schedule</h3>
+       
+      </div>
+      <div id="hourly_wrap">
+        <table class="w-full text-left text-[11px] min-w-[900px]">
+          <thead class="bg-slate-900 sticky top-0 z-10 text-slate-400 border-b border-slate-700">
+            <tr>
+              <th class="th">Time</th>
+              <th class="th">Weather</th>
+              <th class="th">Solar</th>
+              <th class="th">Cell</th>
+              <th class="th">Ambient</th>
+              <th class="th">Rain%</th>
+              <th class="th">mm</th>
+              <th class="th">Cloud</th>
+              <th class="th">Wind</th>
+              <th class="th">Soiling</th>
+              <th class="th">POA</th>
+            </tr>
+          </thead>
+          <tbody id="table_body" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card mt-2">
+      <div class="flex flex-wrap justify-between gap-2 items-center mb-2">
+        <h3 class="font-bold text-sm md:text-base text-slate-200">
+          Chart — <span id="chart_title" class="font-normal text-slate-400">24-Hour Profile</span>
+        </h3>
+        <p class="text-[11px] md:text-xs text-slate-500">Tap chart for hour values</p>
+      </div>
+      <div id="plotly_chart" class="mt-1" style="height:min(42vh, 420px)"></div>
+      <p id="chart_touch_readout">Tap any hour on the chart to see values</p>
+    </section>
+    </div><!-- /forecast_output_block -->
+  </div>
+
+  <script>
+    let cachedData = [];
+    let token = (function () {
+      try {
+        const q = new URLSearchParams(window.location.search).get('token');
+        if (q) return q;
+      } catch (e) { }
+      return "{{ token }}";
+    })();
+    let lastForecastPayload = null; // full API response kept for restore
+    let hardwarePowerMap = {}, activePanelWatts = 0, activeInverterWatts = 0;
+    let lastDcKw = null, lastAcKw = null; // from last forecast / user_config
+
+    function toNum(v) {
+      const n = Number(v);
+      return (isFinite(n) && !isNaN(n)) ? n : 0;
+    }
+    /** Extract watts from model label e.g. Tata_580W → 580, Microtek_5kW → 5000 */
+    function wattsFromLabel(label) {
+      const s = String(label || '');
+      let m = s.match(/(\d+(?:\.\d+)?)\s*kW/i);
+      if (m) return Math.round(parseFloat(m[1]) * 1000);
+      m = s.match(/(\d{3,4})\s*W\b/i);
+      if (m) return parseInt(m[1], 10);
+      return 0;
+    }
+    function fmtKw(kw) {
+      const n = toNum(kw);
+      if (n <= 0) return '-- kW';
+      return (n >= 10 ? n.toFixed(1) : n.toFixed(2)) + ' kW';
+    }
+    function resolvePanelWatts() {
+      const name = document.getElementById('panel_search').value || '';
+      let w = toNum(hardwarePowerMap[name]) || toNum(activePanelWatts) || wattsFromLabel(name);
+      if (w > 0) activePanelWatts = w;
+      return w;
+    }
+    function resolveInverterWatts() {
+      const name = document.getElementById('inverter_search').value || '';
+      let w = toNum(hardwarePowerMap[name]) || toNum(activeInverterWatts) || wattsFromLabel(name);
+      if (w > 0) activeInverterWatts = w;
+      return w;
+    }
+    let liveSearchTimeout = null;
+    let gmap = null, gmarker = null, gpinRect = null;
+    let tempLat = null, tempLon = null;
+    let pinVerified = false, pinBounds = null, pinLatLngBounds = null;
+    let trustedPincode = ''; // last server-saved pin — no re-verify on tab/page return
+    let uiMode = 'edit'; // 'summary' | 'edit'
+    let systemComplete = false;
+    const KG_CO2_PER_TREE_YEAR = 21;
+    const FORECAST_CACHE_KEY = 'solarflow_up_last_forecast_v1';
+
+    function isSystemCompleteFromForm() {
+      const pin = (document.getElementById('pincode_input').value || '').replace(/\D/g, '');
+      const lat = document.getElementById('selected_lat').value;
+      const lon = document.getElementById('selected_lon').value;
+      const panel = (document.getElementById('panel_search').value || '').trim();
+      const inv = (document.getElementById('inverter_search').value || '').trim();
+      const np = +document.getElementById('num_panels').value;
+      const ni = +document.getElementById('num_inverters').value;
+      const load = +document.getElementById('daily_units').value;
+      const year = +document.getElementById('installation_year').value;
+      if (pin.length === 6 && lat && lon) {
+        pinVerified = true;
+        trustedPincode = pin;
+      }
+      return pin.length === 6 && lat && lon && panel && inv &&
+        np >= 1 && ni >= 1 && load > 0 && year >= 2000;
+    }
+
+    function refreshSummaryCard() {
+      const pin = document.getElementById('pincode_input').value;
+      const city = document.getElementById('city_search').value;
+      const dist = document.getElementById('district_select').value;
+      const state = document.getElementById('state_select').value;
+      const lat = document.getElementById('selected_lat').value;
+      const lon = document.getElementById('selected_lon').value;
+      document.getElementById('sum_loc').innerText =
+        [city || 'Locality', pin ? `(${pin})` : '', dist, state].filter(Boolean).join(', ') || '--';
+      document.getElementById('sum_coords').innerText =
+        (lat && lon) ? (`Lat ${Number(lat).toFixed(4)}, Lon ${Number(lon).toFixed(4)}`) : '--';
+        
+      const np = toNum(document.getElementById('num_panels').value) || 0;
+      const ni = toNum(document.getElementById('num_inverters').value) || 0;
+      const panelName = document.getElementById('panel_search').value || 'Panel';
+      const invName = document.getElementById('inverter_search').value || 'Inverter';
+      // Prefer server capacities; else watts × count
+      let dcKw = toNum(lastDcKw);
+      let acKw = toNum(lastAcKw);
+      if (dcKw <= 0) {
+        const pw = resolvePanelWatts();
+        dcKw = (pw > 0 && np > 0) ? (pw * np / 1000) : 0;
+      }
+      if (acKw <= 0) {
+        const iw = resolveInverterWatts();
+        acKw = (iw > 0 && ni > 0) ? (iw * ni / 1000) : 0;
+      }
+      if (dcKw > 0) lastDcKw = dcKw;
+      if (acKw > 0) lastAcKw = acKw;
+      document.getElementById('sum_panel').innerText =
+        fmtKw(dcKw) + ' · ' + (np || '?') + '× ' + panelName;
+      document.getElementById('sum_inv').innerText =
+        fmtKw(acKw) + ' · ' + (ni || '?') + '× ' + invName;
+      let tilt = document.getElementById('tilt').value;
+      let az = document.getElementById('azimuth').value;
+      if (tilt !== '' && !isNaN(+tilt)) tilt = Number(tilt).toFixed(2);
+      if (az !== '' && !isNaN(+az)) az = Number(az).toFixed(1);
+      const load = document.getElementById('daily_units').value;
+      document.getElementById('sum_meta').innerText =
+        `Load ${load || '--'} kWh/day · Tilt ${tilt || 'auto'}° · Az ${az || 'auto'}° · Year ${document.getElementById('installation_year').value || '--'}`;
+    }
+
+    function revealAppShell() {
+      try { document.body.classList.remove('sf-booting'); } catch (e) { }
+    }
+
+    function enterSummaryMode() {
+      systemComplete = isSystemCompleteFromForm();
+      if (!systemComplete) {
+        enterEditMode(false);
+        return;
+      }
+      uiMode = 'summary';
+      refreshSummaryCard();
+      document.getElementById('system_summary_section').classList.remove('hidden');
+      document.getElementById('setup_form_section').classList.add('hidden');
+      document.getElementById('btn_cancel_edit').classList.add('hidden');
+      revealAppShell();
+      validateForm();
+    }
+
+    function enterEditMode(fromSummary) {
+      uiMode = 'edit';
+      document.getElementById('system_summary_section').classList.add('hidden');
+      document.getElementById('setup_form_section').classList.remove('hidden');
+      const showCancel = fromSummary !== false && systemComplete;
+      document.getElementById('btn_cancel_edit').classList.toggle('hidden', !showCancel);
+      document.getElementById('setup_form_title').innerText =
+        systemComplete ? 'Edit system setup' : 'Verified Location & System Setup';
+      revealAppShell();
+      validateForm();
+    }
+
+    function cancelEditMode() {
+      // Reload saved config then summary (discard in-progress form edits)
+      location.reload();
+    }
+
+    function forecastCacheKey(pin, lat, lon) {
+      return [String(pin || ''), Number(lat).toFixed(5), Number(lon).toFixed(5)].join('|');
+    }
+    function saveForecastCache(d, payload) {
+      try {
+        const key = forecastCacheKey(payload.pincode, payload.lat, payload.lon);
+        sessionStorage.setItem(FORECAST_CACHE_KEY, JSON.stringify({
+          key,
+          savedAt: Date.now(),
+          payload: {
+            pincode: payload.pincode,
+            lat: payload.lat,
+            lon: payload.lon,
+            brand_model: payload.brand_model,
+            inverter_model: payload.inverter_model,
+            num_panels: payload.num_panels,
+            num_inverters: payload.num_inverters,
+          },
+          data: d,
+        }));
+      } catch (e) { /* quota / private mode */ }
+    }
+    function loadForecastCache() {
+      try {
+        const raw = sessionStorage.getItem(FORECAST_CACHE_KEY);
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        // Expire after 6 hours (weather changes; avoids stale long-term cache)
+        if (!obj || !obj.savedAt || (Date.now() - obj.savedAt) > 6 * 3600 * 1000) {
+          sessionStorage.removeItem(FORECAST_CACHE_KEY);
+          return null;
+        }
+        return obj;
+      } catch (e) { return null; }
+    }
+    function clearForecastCacheAndUI() {
+      try { sessionStorage.removeItem(FORECAST_CACHE_KEY); } catch (e) { }
+      lastForecastPayload = null;
+      cachedData = [];
+      const wb = document.getElementById('weather_banner');
+      if (wb) wb.classList.add('hidden');
+      const cards = document.getElementById('day_cards');
+      if (cards) cards.innerHTML = '';
+      const tb = document.getElementById('table_body');
+      if (tb) tb.innerHTML = '';
+      const chart = document.getElementById('plotly_chart');
+      if (chart && window.Plotly) {
+        try { Plotly.purge(chart); } catch (e) { chart.innerHTML = ''; }
+      }
+      ['kpi_gen', 'kpi_cons', 'kpi_net', 'kpi_soiling', 'kpi_trees_life'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === 'kpi_soiling') el.innerText = '--';
+        else if (id === 'kpi_trees_life') el.innerText = '--';
+        else el.innerText = '-- kWh';
+      });
+      const co2 = document.getElementById('kpi_co2');
+      if (co2) co2.innerText = '-- kg';
+      const loss = document.getElementById('kpi_soiling_loss');
+      if (loss) loss.innerText = '--';
+      const tip = document.getElementById('kpi_cleaning_tip');
+      if (tip) tip.innerText = '--';
+      const st = document.getElementById('schedule_title');
+      if (st) st.innerText = 'Hourly Schedule';
+    }
+
+    document.getElementById('installation_year').max = new Date().getFullYear();
+    document.getElementById('manual_clean_date').max = new Date().toISOString().split('T')[0];
+
+    function showLoader(msg) {
+      document.getElementById('loader_msg').innerText = msg || 'Please wait…';
+      document.getElementById('global_loader').classList.remove('hidden');
+    }
+    function hideLoader() {
+      document.getElementById('global_loader').classList.add('hidden');
+    }
+
+    async function loadGoogleMapsScript() {
+      try {
+        const r = await fetch('/api/maps_config');
+        const cfg = await r.json();
+        if (!cfg.google_key) {
+          console.warn('GOOGLE_MAPS_API_KEY missing');
+          return false;
+        }
+        if (window.google && window.google.maps) return true;
+        if (document.getElementById('gmaps-sdk')) {
+          if (window.__gmapsReady) return true;
+          await new Promise(res => document.addEventListener('gmaps-ready', res, { once: true }));
+          return true;
+        }
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.id = 'gmaps-sdk';
+          s.async = true;
+          s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(cfg.google_key) +
+            '&libraries=places&callback=initGoogleMapsCallback';
+          s.onerror = () => reject(new Error('Google Maps failed to load'));
+          document.head.appendChild(s);
+          document.addEventListener('gmaps-ready', () => resolve(true), { once: true });
+          setTimeout(() => reject(new Error('Google Maps timeout')), 20000);
+        });
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
+      }
+    }
+
+    window.onload = async () => {
+      showLoader('Loading your dashboard…');
+      // Number fields: scrolling must not change value; keyboard Tab works via natural tab order
+      document.querySelectorAll('input[type="number"]').forEach(function (el) {
+        el.addEventListener('wheel', function (e) {
+          if (document.activeElement === el) {
+            e.preventDefault();
+            el.blur();
+          }
+        }, { passive: false });
+      });
+
+      // Full hardware lists into selects (await so saved models can be selected)
+      await Promise.all([searchHardware('panel', ''), searchHardware('inverter', '')]);
+      let cfg = null;
+      try {
+        const r = await fetch('/api/user_config?token=' + token);
+        cfg = await r.json();
+        if (cfg && cfg.pincode) {
+          document.getElementById('pincode_input').value = cfg.pincode || '';
+          document.getElementById('state_select').value = cfg.state || 'Uttar Pradesh';
+          document.getElementById('district_select').value = cfg.district || '';
+          document.getElementById('city_search').value = cfg.city_locality || '';
+          document.getElementById('city_search').disabled = false;
+          if (cfg.latitude != null) document.getElementById('selected_lat').value = cfg.latitude;
+          if (cfg.longitude != null) document.getElementById('selected_lon').value = cfg.longitude;
+          // ALWAYS trust saved pin+coords on page return — never hit Postal just for navigation
+          const hasSavedCoords = cfg.latitude != null && cfg.longitude != null &&
+            String(cfg.latitude) !== '' && String(cfg.longitude) !== '';
+          if (cfg.pincode && String(cfg.pincode).length === 6 && hasSavedCoords) {
+            pinVerified = true;
+            trustedPincode = String(cfg.pincode);
+            try { sessionStorage.setItem('sf_trusted_pin', trustedPincode); } catch (e) { }
+            document.getElementById('map_controls').classList.remove('hidden');
+            document.getElementById('lock_status').innerText =
+              'Saved location loaded (no pin re-check). Change pin only if you move.';
+          } else if (cfg.pincode && String(cfg.pincode).length === 6) {
+            // Pin saved but no coords yet — verify once so map/search can work
+            await verifyPincode();
+            trustedPincode = String(cfg.pincode);
+          }
+          const mapping = {
+            brand_model: 'panel_search', inverter_model: 'inverter_search', num_panels: 'num_panels', num_inverters: 'num_inverters',
+            daily_units: 'daily_units', installation_year: 'installation_year', last_cleaned_date: 'manual_clean_date',
+            mounting_type: 'mounting_type', availability_pct: 'availability_pct', albedo: 'albedo',
+            bifacial_gain_pct: 'bifacial_gain_pct', wiring_loss_pct: 'wiring_loss_pct',
+            mismatch_loss_pct: 'mismatch_loss_pct', degradation_pct_per_year: 'degradation_pct_per_year'
+          };
+          for (const [k, id] of Object.entries(mapping)) {
+            if (document.getElementById(id) && cfg[k] != null) document.getElementById(id).value = cfg[k];
+          }
+          // Sync searchable dropdown display labels
+          if (cfg.brand_model) setSddValue('panel', cfg.brand_model, false);
+          if (cfg.inverter_model) setSddValue('inverter', cfg.inverter_model, false);
+          document.getElementById('tilt').value = cfg.tilt_angle ?? '';
+          document.getElementById('azimuth').value = cfg.azimuth_angle ?? '';
+          if (Array.isArray(cfg.shading_selection)) setShadingSelection(cfg.shading_selection);
+          activePanelWatts = toNum(cfg.panel_watts) || wattsFromLabel(cfg.brand_model);
+          activeInverterWatts = toNum(cfg.inverter_watts) || wattsFromLabel(cfg.inverter_model);
+          lastDcKw = toNum(cfg.dc_capacity_kw);
+          lastAcKw = toNum(cfg.ac_capacity_kw);
+          if (lastDcKw <= 0 && activePanelWatts > 0 && toNum(cfg.num_panels) > 0) {
+            lastDcKw = activePanelWatts * toNum(cfg.num_panels) / 1000;
+          }
+          if (lastAcKw <= 0 && activeInverterWatts > 0 && toNum(cfg.num_inverters) > 0) {
+            lastAcKw = activeInverterWatts * toNum(cfg.num_inverters) / 1000;
+          }
+          updateCapacityEstimates();
+        }
+      } catch (e) { }
+
+      // Mode: summary if saved system is complete; else full first-time form
+      try {
+        const pinNow = (document.getElementById('pincode_input').value || '').replace(/\D/g, '');
+        const latNow = document.getElementById('selected_lat').value;
+        const lonNow = document.getElementById('selected_lon').value;
+        if (pinNow.length === 6 && latNow && lonNow) {
+          pinVerified = true;
+          trustedPincode = pinNow;
+        }
+        if (cfg && cfg.is_complete) {
+          systemComplete = true;
+          const slope = Number(cfg.calibration_slope || 1);
+          document.getElementById('sum_calib').innerText =
+            'Calibration: ' + slope.toFixed(3) + '×' +
+            (Math.abs(slope - 1) > 0.01 ? ' (active)' : ' (default)');
+          enterSummaryMode();
+        } else {
+          systemComplete = false;
+          enterEditMode(false);
+        }
+      } catch (e) {
+        enterEditMode(false);
+      }
+
+      // Restore last forecast if still same pin + coordinates (no extra Open-Meteo call)
+      let restoredCache = false;
+      try {
+        const cached = loadForecastCache();
+        const pin = document.getElementById('pincode_input').value;
+        const lat = document.getElementById('selected_lat').value;
+        const lon = document.getElementById('selected_lon').value;
+        if (cached && lat && lon && cached.key === forecastCacheKey(pin, lat, lon)) {
+          applyForecastData(cached.data);
+          restoredCache = true;
+        }
+      } catch (e) { }
+
+      validateForm();
+
+      // Seamless first load: if system is saved but no cached forecast, auto-run forecast
+      try {
+        const pin = (document.getElementById('pincode_input').value || '').replace(/\D/g, '');
+        const lat = document.getElementById('selected_lat').value;
+        const lon = document.getElementById('selected_lon').value;
+        const canAuto =
+          !restoredCache &&
+          cfg && cfg.is_complete &&
+          pin.length === 6 && lat && lon &&
+          document.getElementById('panel_search').value &&
+          document.getElementById('inverter_search').value &&
+          +document.getElementById('num_panels').value >= 1;
+        if (canAuto) {
+          showLoader('Loading your 7-day forecast…');
+          revealAppShell(); // summary already visible under loader
+          await new Promise(function (r) { setTimeout(r, 40); });
+          await executeForecast(); // shows/hides its own loader in finally
+          return;
+        }
+      } catch (e) { }
+      revealAppShell();
+      hideLoader();
+    };
+
+    function toggleAdvanced() {
+      const p = document.getElementById('advanced_panel');
+      p.classList.toggle('hidden');
+      document.getElementById('adv_arrow').innerText = p.classList.contains('hidden') ? '＋' : '−';
+    }
+    function treesFromCo2(kg) { return Number(kg || 0) / KG_CO2_PER_TREE_YEAR; }
+
+    function toggleShade(el) {
+      const row = el.parentElement;
+      const was = el.classList.contains('active');
+      row.querySelectorAll('.shade-chip').forEach(c => c.classList.remove('active'));
+      if (!was) el.classList.add('active');
+      updateShadeSummary(); validateForm();
+    }
+    function getShadingSelection() {
+      return Array.from(document.querySelectorAll('.shade-chip.active')).map(c => c.dataset.value);
+    }
+    function setShadingSelection(list) {
+      document.querySelectorAll('.shade-chip').forEach(c => c.classList.remove('active'));
+      (list || []).forEach(v => {
+        const el = document.querySelector('.shade-chip[data-value="' + v + '"]');
+        if (!el) return;
+        el.parentElement.querySelectorAll('.shade-chip').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+      });
+      updateShadeSummary();
+    }
+    function updateShadeSummary() {
+      const sel = getShadingSelection();
+      document.getElementById('shade_summary').innerText = sel.length
+        ? ('Selected: ' + sel.map(s => s.replace('_', ' · ')).join(' | '))
+        : 'No shading selected (clear horizon)';
+    }
+
+    function clearLocationData() {
+      pinVerified = false; pinBounds = null; pinLatLngBounds = null;
+      tempLat = tempLon = null;
+      document.getElementById('state_select').value = '';
+      document.getElementById('district_select').value = '';
+      document.getElementById('city_search').value = '';
+      document.getElementById('city_search').disabled = true;
+      document.getElementById('selected_lat').value = '';
+      document.getElementById('selected_lon').value = '';
+      document.getElementById('lock_status').innerText = '';
+      document.getElementById('err_city').innerText = '';
+      document.getElementById('city_dropdown').classList.add('hidden');
+      document.getElementById('city_dropdown').innerHTML = '';
+      document.getElementById('map_section').classList.add('hidden');
+      document.getElementById('map_controls').classList.add('hidden');
+      document.getElementById('btn_open_map').classList.remove('hidden');
+      document.getElementById('btn_close_map').classList.add('hidden');
+      gmap = null; gmarker = null;
+      // New place → old forecast is invalid (must click Generate again)
+      clearForecastCacheAndUI();
+      validateForm();
+    }
+
+    function onPincodeInput() {
+      const pin = document.getElementById('pincode_input').value.replace(/\D/g, '');
+      document.getElementById('pincode_input').value = pin;
+      // Same as already trusted saved pin → do nothing (no Postal, no cache clear)
+      if (pin.length === 6 && trustedPincode && pin === trustedPincode && pinVerified) {
+        document.getElementById('err_pincode').innerText = '';
+        return;
+      }
+      // Real pin change → invalidate forecast and re-verify
+      clearForecastCacheAndUI();
+      if (pin.length !== 6) {
+        document.getElementById('err_pincode').innerText = pin.length ? 'Enter complete 6-digit pincode' : '';
+        document.getElementById('err_pincode').className = 'err';
+        if (pin.length === 0 || pin !== trustedPincode) clearLocationData();
+        return;
+      }
+      verifyPincode();
+    }
+
+    function clampToBounds(lat, lon) {
+      if (!pinBounds) return { lat, lon };
+      return {
+        lat: Math.min(pinBounds.north, Math.max(pinBounds.south, lat)),
+        lon: Math.min(pinBounds.east, Math.max(pinBounds.west, lon)),
+      };
+    }
+
+    async function loadPinBounds(pin) {
+      pinBounds = null;
+      pinLatLngBounds = null;
+      const r = await fetch('/api/pincode_bounds?pin=' + pin);
+      const d = await r.json();
+      if (!r.ok || d.south == null) {
+        throw new Error(d.error || d.hint || 'bounds not found');
+      }
+      pinBounds = d;
+      if (window.google && google.maps) {
+        pinLatLngBounds = new google.maps.LatLngBounds(
+          { lat: d.south, lng: d.west },
+          { lat: d.north, lng: d.east }
+        );
+      }
+    }
+
+    async function lockLocation(lat, lon, preferredName) {
+      lat = parseFloat(lat); lon = parseFloat(lon);
+      if (!isFinite(lat) || !isFinite(lon)) return false;
+      const c = clampToBounds(lat, lon);
+      lat = c.lat; lon = c.lon;
+      document.getElementById('selected_lat').value = lat;
+      document.getElementById('selected_lon').value = lon;
+
+      let locality = (preferredName || '').trim();
+      try {
+        showLoader('Getting exact place name…');
+        const r = await fetch('/api/reverse_geocode?lat=' + lat + '&lon=' + lon);
+        const d = await r.json();
+        if (d.locality && d.locality.trim()) locality = d.locality.trim();
+      } catch (e) { }
+      finally { hideLoader(); }
+
+      if (!locality) locality = preferredName || 'Selected Location';
+      document.getElementById('city_search').value = locality;
+      document.getElementById('lock_status').innerText =
+        '✓ Locked: ' + locality + '  (' + lat.toFixed(5) + ', ' + lon.toFixed(5) + ')';
+      document.getElementById('err_city').innerText = '';
+      validateForm();
+      return true;
+    }
+
+    async function verifyPincode() {
+      const pin = document.getElementById('pincode_input').value.replace(/\D/g, '');
+      const es = document.getElementById('err_pincode');
+      if (pin.length !== 6) {
+        if (!pin) clearLocationData();
+        return false;
+      }
+      // Already trusted this pin (page return / same pin) → no API
+      if (pinVerified && trustedPincode === pin) {
+        es.innerText = '✓ PIN ready (saved)';
+        es.className = 'err text-emerald-400';
+        validateForm();
+        return true;
+      }
+      es.innerText = ''; es.className = 'err';
+      // Only clear place fields when pin actually changes
+      if (trustedPincode && trustedPincode !== pin) {
+        document.getElementById('selected_lat').value = '';
+        document.getElementById('selected_lon').value = '';
+        document.getElementById('city_search').value = '';
+        document.getElementById('lock_status').innerText = '';
+      }
+      pinVerified = false; pinBounds = null;
+
+      showLoader('Verifying pincode…');
+      try {
+        const r = await fetch('/api/verify_pincode?pin=' + pin);
+        const d = await r.json();
+        if (!d.ok) throw new Error(d.error || 'Invalid pincode or outside Uttar Pradesh');
+
+        document.getElementById('state_select').value = d.state || 'Uttar Pradesh';
+        document.getElementById('district_select').value = d.district || '';
+        document.getElementById('city_search').disabled = false;
+
+        showLoader('Loading map area…');
+        await loadPinBounds(pin);
+
+        pinVerified = true;
+        trustedPincode = pin;
+        try { sessionStorage.setItem('sf_trusted_pin', pin); } catch (e) { }
+        es.innerText = d.warning
+          ? ('✓ PIN verified (fallback). Type 3+ letters to search Google.')
+          : '✓ PIN verified. Type 3+ letters to search Google, or use map/GPS.';
+        es.className = 'err text-emerald-400';
+
+        document.getElementById('map_controls').classList.remove('hidden');
+        document.getElementById('map_section').classList.add('hidden');
+        document.getElementById('btn_open_map').classList.remove('hidden');
+        document.getElementById('btn_close_map').classList.add('hidden');
+        document.getElementById('city_dropdown').classList.add('hidden');
+        validateForm();
+        return true;
+      } catch (e) {
+        es.innerText = e.message || 'Invalid pincode';
+        es.className = 'err';
+        clearLocationData();
+        return false;
+      } finally {
+        hideLoader();
+      }
+    }
+
+    /* ===== GOOGLE SEARCH ONLY (no postal suggestions) ===== */
+    function debounceLiveSearch(q) {
+      clearTimeout(liveSearchTimeout);
+      if (!pinVerified) return;
+      const dd = document.getElementById('city_dropdown');
+      q = (q || '').trim();
+
+      if (q.length < 3) {
+        dd.classList.add('hidden');
+        dd.innerHTML = '';
+        return;
+      }
+
+      dd.classList.remove('hidden');
+      dd.innerHTML = '<div class="px-4 py-3 text-xs text-amber-400">Searching…</div>';
+
+      liveSearchTimeout = setTimeout(async () => {
+        const pin = document.getElementById('pincode_input').value;
+        const district = document.getElementById('district_select').value;
+        try {
+          const r = await fetch(
+            '/api/locality_autocomplete?q=' + encodeURIComponent(q) +
+            '&pin=' + encodeURIComponent(pin) +
+            '&district=' + encodeURIComponent(district)
+          );
+          const payload = await r.json();
+          // Plain array from server, or empty object fallback
+          let items = Array.isArray(payload) ? payload : (payload && payload.results) || [];
+          renderDropdown(items);
+        } catch (e) {
+          dd.innerHTML = '<div class="px-4 py-3 text-xs text-red-400">Search failed — try map / GPS</div>';
+        }
+      }, 500);
+    }
+
+    function renderDropdown(items) {
+      const dd = document.getElementById('city_dropdown');
+      dd.innerHTML = '';
+      if (!items || !items.length) {
+        dd.innerHTML =
+          '<div class="px-4 py-3 text-xs text-slate-400">No places found. Try another spelling, or use Map / GPS.</div>';
+        return;
+      }
+      items.slice(0, 15).forEach(it => {
+        const div = document.createElement('div');
+        div.className = 'px-4 py-3 text-xs hover:bg-slate-800 cursor-pointer';
+        const src = it.source ? (' · ' + it.source) : '';
+        div.innerHTML =
+          '<div class="font-semibold text-slate-100">📍 ' + (it.name || '') + '</div>' +
+          '<div class="text-[10px] text-slate-400 mt-0.5">' + (it.display || it.name || '') + src + '</div>';
+        div.onmousedown = async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          await selectLocality(it);
+        };
+        dd.appendChild(div);
+      });
+    }
+
+    async function selectLocality(it) {
+      document.getElementById('city_dropdown').classList.add('hidden');
+      document.getElementById('city_search').value = it.name || '';
+      showLoader('Resolving exact coordinates…');
+      try {
+        // OSM results already include lat/lon — lock immediately
+        if (it.lat != null && it.lon != null) {
+          const c = clampToBounds(parseFloat(it.lat), parseFloat(it.lon));
+          await lockLocation(c.lat, c.lon, it.name);
+          return;
+        }
+        const pin = document.getElementById('pincode_input').value;
+        const district = document.getElementById('district_select').value;
+        let url = '/api/geocode?address=' + encodeURIComponent(it.name || '') +
+          '&pin=' + encodeURIComponent(pin) +
+          '&district=' + encodeURIComponent(district);
+        if (it.place_id) url += '&place_id=' + encodeURIComponent(it.place_id);
+        const r = await fetch(url);
+        const d = await r.json();
+        if (d.lat == null || d.lon == null) throw new Error('No coordinates');
+        const c = clampToBounds(parseFloat(d.lat), parseFloat(d.lon));
+        await lockLocation(c.lat, c.lon, d.name || it.name);
+      } catch (e) {
+        document.getElementById('err_city').innerText =
+          'Could not resolve this place. Try Map or GPS instead.';
+        document.getElementById('err_city').className = 'err';
+      } finally {
+        hideLoader();
+      }
+    }
+
+    document.addEventListener('click', e => {
+      const s = document.getElementById('city_search');
+      const d = document.getElementById('city_dropdown');
+      if (s && d && !s.contains(e.target) && !d.contains(e.target)) d.classList.add('hidden');
+    });
+
+    /* ===== GOOGLE MAP ===== */
+    async function openMap() {
+      if (!pinVerified) { alert('Verify pincode first'); return; }
+      showLoader('Loading maps…');
+      const okMaps = await loadGoogleMapsScript();
+      hideLoader();
+      if (!okMaps || !window.google || !google.maps) {
+        alert('Google Maps not loaded. Check GOOGLE_MAPS_API_KEY, enable Maps JavaScript API, and billing.');
+        return;
+      }
+      document.getElementById('map_section').classList.remove('hidden');
+      document.getElementById('btn_open_map').classList.add('hidden');
+      document.getElementById('btn_close_map').classList.remove('hidden');
+      requestAnimationFrame(() => {
+        setTimeout(() => initGoogleMap(), 50);
+      });
+    }
+    function closeMap() {
+      document.getElementById('map_section').classList.add('hidden');
+      document.getElementById('btn_open_map').classList.remove('hidden');
+      document.getElementById('btn_close_map').classList.add('hidden');
+    }
+
+    async function assertInsideUP(lat, lon) {
+      try {
+        const r = await fetch('/api/validate_location?lat=' + lat + '&lon=' + lon);
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+          alert(d.error || 'Location is outside Uttar Pradesh');
+          return false;
+        }
+        return true;
+      } catch (e) {
+        alert('Could not validate location');
+        return false;
+      }
+    }
+
+    async function initGoogleMap() {
+      if (!window.google || !google.maps) {
+        alert('Google Maps failed to load. Enable Maps JavaScript API + billing on your Google Cloud key.');
+        return;
+      }
+      if (!pinBounds) {
+        showLoader('Loading pincode area…');
+        try { await loadPinBounds(document.getElementById('pincode_input').value); }
+        finally { hideLoader(); }
+      }
+      if (!pinBounds) { alert('Could not load pincode bounds for this UP pin'); return; }
+
+      pinLatLngBounds = new google.maps.LatLngBounds(
+        { lat: pinBounds.south, lng: pinBounds.west },
+        { lat: pinBounds.north, lng: pinBounds.east }
+      );
+
+      let center = { lat: pinBounds.center_lat, lng: pinBounds.center_lon };
+      const elat = document.getElementById('selected_lat').value;
+      const elon = document.getElementById('selected_lon').value;
+      if (elat && elon) {
+        const c = clampToBounds(parseFloat(elat), parseFloat(elon));
+        center = { lat: c.lat, lng: c.lon };
+      }
+
+      const mapEl = document.getElementById('map');
+      // Destroy previous map cleanly
+      if (gpinRect) { try { gpinRect.setMap(null); } catch (e) {} gpinRect = null; }
+      if (gmap) {
+        gmap = null;
+        gmarker = null;
+        mapEl.innerHTML = '';
+      }
+
+      // NO map.restriction — that crops the view and hides nearby streets.
+      // Marker is still forced inside the pincode box via clampToBounds.
+      gmap = new google.maps.Map(mapEl, {
+        center,
+        zoom: 15,
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: true,
+        zoomControl: true,
+        gestureHandling: 'greedy',
+        clickableIcons: false,
+      });
+
+      // Visible pincode boundary (yellow rectangle)
+      gpinRect = new google.maps.Rectangle({
+        bounds: pinLatLngBounds,
+        map: gmap,
+        clickable: false,
+        strokeColor: '#fbbf24',
+        strokeOpacity: 0.95,
+        strokeWeight: 2,
+        fillColor: '#fbbf24',
+        fillOpacity: 0.08,
+      });
+
+      gmarker = new google.maps.Marker({
+        position: center,
+        map: gmap,
+        draggable: true,
+        title: 'System location — must stay inside yellow box'
+      });
+      gmarker.addListener('dragend', () => {
+        const p = gmarker.getPosition();
+        const c = clampToBounds(p.lat(), p.lng());
+        gmarker.setPosition({ lat: c.lat, lng: c.lon });
+        tempLat = c.lat; tempLon = c.lon;
+        document.getElementById('map_status').innerText = 'Marker inside pincode — click Confirm';
+      });
+      gmap.addListener('click', (e) => {
+        const c = clampToBounds(e.latLng.lat(), e.latLng.lng());
+        gmarker.setPosition({ lat: c.lat, lng: c.lon });
+        tempLat = c.lat; tempLon = c.lon;
+        document.getElementById('map_status').innerText = 'Marker inside pincode — click Confirm';
+      });
+
+      // Fit entire pin box with padding; then force a resize (fixes blank / cropped map)
+      gmap.fitBounds(pinLatLngBounds, { top: 56, right: 56, bottom: 56, left: 56 });
+      tempLat = center.lat; tempLon = center.lng;
+      document.getElementById('map_status').innerText =
+        'Yellow box = pincode. Place marker only inside it, then Confirm.';
+
+      // Critical: map was hidden when created — trigger resize after layout
+      setTimeout(() => {
+        if (!gmap) return;
+        google.maps.event.trigger(gmap, 'resize');
+        gmap.fitBounds(pinLatLngBounds, { top: 56, right: 56, bottom: 56, left: 56 });
+      }, 120);
+      setTimeout(() => {
+        if (!gmap) return;
+        google.maps.event.trigger(gmap, 'resize');
+      }, 400);
+    }
+
+    async function confirmMapLocation() {
+      if (tempLat == null || tempLon == null) {
+        alert('Select a point on the map first');
+        return;
+      }
+      const c = clampToBounds(tempLat, tempLon);
+      if (!(await assertInsideUP(c.lat, c.lon))) return;
+      await lockLocation(c.lat, c.lon);
+      closeMap();
+    }
+
+    /** GPS button on the map: show current point, clamp to pin, allow drag for fine tune */
+    async function fetchLocOnMap() {
+      if (!pinVerified) { alert('Verify pincode first'); return; }
+      if (!navigator.geolocation) { alert('GPS not supported on this device'); return; }
+      if (!gmap || !gmarker) {
+        await openMap();
+      }
+      showLoader('Fetching your location…');
+      navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+          let lat = pos.coords.latitude, lon = pos.coords.longitude;
+          // 1) Must be inside Uttar Pradesh
+          const okUp = await assertInsideUP(lat, lon);
+          if (!okUp) { hideLoader(); return; }
+          // 2) Prefer inside current pincode; else offer nearest point in pin box
+          if (pinBounds) {
+            const inside = lat >= pinBounds.south && lat <= pinBounds.north &&
+              lon >= pinBounds.west && lon <= pinBounds.east;
+            if (!inside) {
+              hideLoader();
+              if (!confirm('Your GPS is outside this pincode area. Place marker at nearest point inside the pin?')) {
+                return;
+              }
+              const c = clampToBounds(lat, lon);
+              lat = c.lat; lon = c.lon;
+              showLoader('Updating map…');
+            }
+          }
+          const c = clampToBounds(lat, lon);
+          if (gmarker) gmarker.setPosition({ lat: c.lat, lng: c.lon });
+          if (gmap) {
+            gmap.panTo({ lat: c.lat, lng: c.lon });
+            gmap.setZoom(Math.max(gmap.getZoom() || 14, 16));
+          }
+          tempLat = c.lat; tempLon = c.lon;
+          document.getElementById('map_status').innerText =
+            'GPS placed — drag for exact rooftop, then Confirm';
+        } finally {
+          hideLoader();
+        }
+      }, () => {
+        hideLoader();
+        alert('Could not get GPS. Allow location permission and try again.');
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    }
+
+    function useCurrentGPS() {
+      // Same safety as map button; also locks location without requiring map open
+      if (!pinVerified) { alert('Verify pincode first'); return; }
+      if (!navigator.geolocation) { alert('GPS not supported'); return; }
+      showLoader('Reading GPS…');
+      navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+          let lat = pos.coords.latitude, lon = pos.coords.longitude;
+          if (!(await assertInsideUP(lat, lon))) return;
+          if (pinBounds) {
+            const inside = lat >= pinBounds.south && lat <= pinBounds.north &&
+              lon >= pinBounds.west && lon <= pinBounds.east;
+            if (!inside) {
+              if (!confirm('GPS is outside this pincode. Use nearest point inside pincode?')) return;
+              const c = clampToBounds(lat, lon); lat = c.lat; lon = c.lon;
+            }
+          }
+          await lockLocation(lat, lon);
+        } finally {
+          hideLoader();
+        }
+      }, () => { hideLoader(); alert('Could not get GPS'); },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    }
+
+    /* ===== Searchable + scrollable hardware dropdowns ===== */
+    const sddData = { panel: [], inverter: [] };
+    const sddActive = { panel: -1, inverter: -1 };
+
+    async function searchHardware(type, q) {
+      try {
+        const r = await fetch('/api/search_hardware?type=' + type + '&q=' + encodeURIComponent(q || ''));
+        const d = await r.json();
+        sddData[type] = (d || []).map(x => {
+          hardwarePowerMap[x.id] = x.power;
+          return { id: x.id, label: x.label, power: x.power };
+        });
+        // Restore display text if value already set
+        const hid = document.getElementById(type === 'panel' ? 'panel_search' : 'inverter_search');
+        if (hid && hid.value) setSddValue(type, hid.value, false);
+      } catch (e) { }
+    }
+
+    function sddEls(type) {
+      return {
+        hid: document.getElementById(type === 'panel' ? 'panel_search' : 'inverter_search'),
+        disp: document.getElementById(type === 'panel' ? 'panel_search_display' : 'inverter_search_display'),
+        menu: document.getElementById(type === 'panel' ? 'panel_sdd_menu' : 'inverter_sdd_menu'),
+      };
+    }
+
+    function openSdd(type) {
+      const { menu, disp } = sddEls(type);
+      if (!menu) return;
+      menu.classList.remove('hidden');
+      renderSdd(type, (disp && disp.value) || '');
+    }
+
+    function closeSdd(type) {
+      const { menu } = sddEls(type);
+      if (menu) menu.classList.add('hidden');
+      sddActive[type] = -1;
+    }
+
+    function filterSdd(type, q) {
+      openSdd(type);
+      renderSdd(type, q || '');
+      // Typing without pick clears committed value until a row is chosen
+      const { hid } = sddEls(type);
+      if (hid) hid.value = '';
+      validateForm();
+    }
+
+    function renderSdd(type, q) {
+      const { menu } = sddEls(type);
+      if (!menu) return;
+      const qq = (q || '').trim().toLowerCase();
+      let items = sddData[type] || [];
+      if (qq) {
+        items = items.filter(x =>
+          (x.label || '').toLowerCase().includes(qq) ||
+          (x.id || '').toLowerCase().includes(qq)
+        );
+      }
+      menu.innerHTML = '';
+      if (!items.length) {
+        menu.innerHTML = '<div class="sdd-empty">No match — try another name</div>';
+        return;
+      }
+      items.forEach((x, idx) => {
+        const div = document.createElement('div');
+        div.className = 'sdd-item' + (sddActive[type] === idx ? ' active' : '');
+        div.textContent = x.label; // full label always
+        div.onmousedown = function (e) {
+          e.preventDefault();
+          pickSdd(type, x);
+        };
+        menu.appendChild(div);
+      });
+    }
+
+    function pickSdd(type, x) {
+      const { hid, disp } = sddEls(type);
+      if (hid) hid.value = x.id || '';
+      if (disp) disp.value = x.label || x.id || '';
+      if (type === 'panel' && x.power) activePanelWatts = toNum(x.power);
+      if (type === 'inverter' && x.power) activeInverterWatts = toNum(x.power);
+      closeSdd(type);
+      updateCapacityEstimates();
+      validateForm();
+    }
+
+    function setSddValue(type, id, openMenu) {
+      const { hid, disp } = sddEls(type);
+      if (!hid) return;
+      hid.value = id || '';
+      const found = (sddData[type] || []).find(x => x.id === id);
+      if (disp) disp.value = found ? found.label : (id || '');
+      if (found && found.power) {
+        if (type === 'panel') activePanelWatts = toNum(found.power);
+        if (type === 'inverter') activeInverterWatts = toNum(found.power);
+      }
+      if (!openMenu) closeSdd(type);
+    }
+
+    function sddKey(type, e) {
+      const { menu } = sddEls(type);
+      if (!menu || menu.classList.contains('hidden')) {
+        if (e.key === 'ArrowDown') { openSdd(type); e.preventDefault(); }
+        return;
+      }
+      const items = menu.querySelectorAll('.sdd-item');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        sddActive[type] = Math.min(items.length - 1, (sddActive[type] < 0 ? 0 : sddActive[type] + 1));
+        items.forEach((el, i) => el.classList.toggle('active', i === sddActive[type]));
+        items[sddActive[type]].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        sddActive[type] = Math.max(0, (sddActive[type] < 0 ? 0 : sddActive[type] - 1));
+        items.forEach((el, i) => el.classList.toggle('active', i === sddActive[type]));
+        items[sddActive[type]].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (sddActive[type] >= 0 && items[sddActive[type]]) items[sddActive[type]].dispatchEvent(new MouseEvent('mousedown'));
+      } else if (e.key === 'Escape') {
+        closeSdd(type);
+      }
+    }
+
+    document.addEventListener('click', function (e) {
+      ['panel', 'inverter'].forEach(function (type) {
+        const root = document.getElementById(type === 'panel' ? 'panel_sdd' : 'inverter_sdd');
+        if (root && !root.contains(e.target)) closeSdd(type);
+      });
+    });
+
+    function onHardwareSelect(type) {
+      const hid = document.getElementById(type === 'panel' ? 'panel_search' : 'inverter_search');
+      if (!hid || !hid.value) return;
+      const watts = hardwarePowerMap[hid.value];
+      if (type === 'panel' && watts) activePanelWatts = toNum(watts);
+      if (type === 'inverter' && watts) activeInverterWatts = toNum(watts);
+    }
+    function updateCapacityEstimates() {
+      const p = resolvePanelWatts();
+      const i = resolveInverterWatts();
+      const np = toNum(document.getElementById('num_panels').value);
+      const ni = toNum(document.getElementById('num_inverters').value);
+      if (p > 0 && np > 0) {
+        lastDcKw = p * np / 1000;
+        document.getElementById('panel_badge').innerText = lastDcKw.toFixed(2) + ' kW DC';
+      }
+      if (i > 0 && ni > 0) {
+        lastAcKw = i * ni / 1000;
+        document.getElementById('inv_badge').innerText = lastAcKw.toFixed(2) + ' kW AC';
+      }
+      if (uiMode === 'summary') refreshSummaryCard();
+      validateForm();
+    }
+
+    function validateForm() {
+      const required = ['state_select', 'district_select', 'pincode_input', 'city_search', 'selected_lat', 'selected_lon',
+        'panel_search', 'inverter_search', 'num_panels', 'num_inverters', 'daily_units', 'installation_year', 'mounting_type'];
+      const ok = required.every(id => String(document.getElementById(id).value || '').trim());
+      const pinOk = (document.getElementById('pincode_input').value || '').replace(/\D/g, '').length === 6;
+      const latOk = !!document.getElementById('selected_lat').value;
+      const lonOk = !!document.getElementById('selected_lon').value;
+      if (pinOk && latOk && lonOk) pinVerified = true;
+      const ready = ok && pinOk && latOk && lonOk &&
+        +document.getElementById('num_panels').value > 0 && +document.getElementById('num_inverters').value > 0 &&
+        +document.getElementById('daily_units').value > 0;
+      const b = document.getElementById('search_btn');
+      const rb = document.getElementById('summary_refresh_btn');
+      if (ready) {
+        b.disabled = false;
+        b.className = 'bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold px-7 py-4 rounded-2xl text-sm cursor-pointer';
+        if (rb) rb.disabled = false;
+        document.getElementById('sys_info').innerText = '✓ Ready to generate forecast.';
+        return true;
+      }
+      b.disabled = true;
+      b.className = 'btn-disabled';
+      if (rb) rb.disabled = true;
+      document.getElementById('sys_info').innerText = 'Complete required fields (*).';
+      return false;
+    }
+
+    function refreshForecast() {
+      // Drop cached forecast so we hit the API again for a fresh 7-day run
+      try { sessionStorage.removeItem(FORECAST_CACHE_KEY); } catch (e) { }
+      lastForecastPayload = null;
+      executeForecast();
+    }
+
+    async function executeForecast() {
+      if (!validateForm()) {
+        // If summary mode but form invalid, force edit
+        if (uiMode === 'summary') enterEditMode(true);
+        return;
+      }
+      const b = document.getElementById('search_btn');
+      const rb = document.getElementById('summary_refresh_btn');
+      b.innerText = 'Processing…'; b.disabled = true;
+      if (rb) { rb.disabled = true; rb.innerText = 'Refreshing…'; }
+      showLoader('Generating 7-day forecast…');
+      const payload = {
+        token,
+        state: document.getElementById('state_select').value,
+        district: document.getElementById('district_select').value,
+        city_locality: document.getElementById('city_search').value,
+        pincode: document.getElementById('pincode_input').value,
+        lat: +document.getElementById('selected_lat').value,
+        lon: +document.getElementById('selected_lon').value,
+        brand_model: document.getElementById('panel_search').value,
+        inverter_model: document.getElementById('inverter_search').value,
+        num_panels: +document.getElementById('num_panels').value,
+        num_inverters: +document.getElementById('num_inverters').value,
+        daily_units: +document.getElementById('daily_units').value,
+        installation_year: +document.getElementById('installation_year').value,
+        tilt: document.getElementById('tilt').value,
+        azimuth: document.getElementById('azimuth').value,
+        manual_clean_date: document.getElementById('manual_clean_date').value,
+        shading_selection: getShadingSelection(),
+        mounting_type: document.getElementById('mounting_type').value,
+        albedo: +document.getElementById('albedo').value,
+        bifacial_gain_pct: +document.getElementById('bifacial_gain_pct').value,
+        wiring_loss_pct: +document.getElementById('wiring_loss_pct').value,
+        mismatch_loss_pct: +document.getElementById('mismatch_loss_pct').value,
+        availability_pct: +document.getElementById('availability_pct').value,
+        degradation_pct_per_year: +document.getElementById('degradation_pct_per_year').value
+      };
+      try {
+        const r = await fetch('/api/forecast', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        applyForecastData(d);
+        saveForecastCache(d, payload);
+        // After first successful save, prefer compact home for this user
+        systemComplete = true;
+        if (d.system && d.system.calibration_slope != null) {
+          const slope = Number(d.system.calibration_slope);
+          document.getElementById('sum_calib').innerText =
+            'Calibration: ' + slope.toFixed(3) + '×' +
+            (Math.abs(slope - 1) > 0.01 ? ' (active)' : ' (default)');
+        }
+        enterSummaryMode();
+      } catch (e) { alert('Error: ' + e.message); }
+      finally {
+        hideLoader();
+        b.innerText = 'Generate 7-Day Forecast ⚡';
+        if (rb) { rb.innerText = '↻ Refresh forecast'; rb.disabled = false; }
+        validateForm();
+      }
+    }
+
+    function emoji(c) {
+      const s = (c || '').toLowerCase();
+      if (s.includes('night') && s.includes('thunder')) return '⛈️';
+      if (s.includes('night') && (s.includes('rain') || s.includes('drizzle'))) return '🌧️';
+      if (s.includes('night') && s.includes('cloud')) return '☁️';
+      if (s.includes('night') || s.includes('clear night')) return '🌙';
+      if (s.includes('thunder')) return '⛈️';
+      if (s.includes('rain') || s.includes('drizzle')) return '🌧️';
+      if (s.includes('cloud') || s.includes('overcast')) return '☁️';
+      if (s.includes('clear') || s.includes('sunny')) return '☀️';
+      return '🌤️';
+    }
+    function liveStat(label, value) {
+      return '<span class="inline-flex items-center gap-1 bg-slate-900/70 border border-slate-700/50 rounded-lg px-2 py-1">' +
+        '<span class="text-slate-500">' + label + '</span><span class="font-bold text-white">' + value + '</span></span>';
+    }
+    function applyForecastData(d) {
+      const c = d.current_weather || {};
+      document.getElementById('weather_banner').classList.remove('hidden');
+      document.getElementById('wb_location').innerText = 'Live Weather — ' ;
+      document.getElementById('wb_desc').innerText = (c.condition || '') + ' • Wind ' + (c.wind || 0) + ' • Cloud ' + (c.cloud || 0) + '%';
+      document.getElementById('wb_icon').innerText = c.emoji || emoji(c.condition);
+      document.getElementById('live_weather_grid').innerHTML =
+        liveStat('Temp', (c.temp ?? '--') + '°C') + liveStat('Feels', (c.feels_like ?? '--') + '°C') +
+        liveStat('Humidity', (c.humidity ?? '--') + '%') + liveStat('Rain%', (c.rain_prob ?? '--') + '%') +
+        liveStat('Rain', (c.rain_mm ?? '--') + ' mm') + liveStat('Cloud', (c.cloud ?? '--') + '%') +
+        liveStat('Wind', (c.wind ?? '--')) + liveStat('AQI', c.aqi ?? '—');
+      const tiltShow = (d.system?.tilt != null && d.system.tilt !== '') ? Number(d.system.tilt).toFixed(2) : '--';
+      const azShow = (d.system?.azimuth != null && d.system.azimuth !== '') ? Number(d.system.azimuth).toFixed(1) : '--';
+      document.getElementById('sys_info').innerText =
+        '✓ Tilt ' + tiltShow + '° · Azimuth ' + azShow +
+        '° · DC ' + (d.system?.dc_capacity_kw ?? '--') + ' kW · AC ' + (d.system?.ac_capacity_kw ?? '--') + ' kW';
+      // Keep summary hardware kW from server (numbers, not strings)
+      lastDcKw = toNum(d.system?.dc_capacity_kw) || lastDcKw;
+      lastAcKw = toNum(d.system?.ac_capacity_kw) || lastAcKw;
+      const npN = toNum(document.getElementById('num_panels').value);
+      const niN = toNum(document.getElementById('num_inverters').value);
+      if (lastDcKw > 0 && npN > 0) activePanelWatts = Math.round(lastDcKw * 1000 / npN);
+      if (lastAcKw > 0 && niN > 0) activeInverterWatts = Math.round(lastAcKw * 1000 / niN);
+      if (document.getElementById('tilt').value === '' && d.system?.tilt != null) {
+        document.getElementById('tilt').value = Number(d.system.tilt).toFixed(2);
+      }
+      refreshSummaryCard();
+      const gen7 = d.total_7d_gen_units ?? null;
+      const cons7 = d.total_7d_cons_units ?? null;
+      const net = d.net_balance_units ?? null;
+      const todayGen = d.today_gen_units ?? null;
+      document.getElementById('kpi_gen').innerText = (gen7 != null ? gen7 : '--') + ' kWh';
+      const p10g = d.total_7d_gen_p10, p90g = d.total_7d_gen_p90;
+      document.getElementById('kpi_gen_sub').innerText =
+        (p10g != null && p90g != null
+          ? ('Range ' + Number(p10g).toFixed(1) + '–' + Number(p90g).toFixed(1) + ' · ')
+          : '') +
+        'Today: ' + (todayGen != null ? todayGen + ' kWh' : '--') +
+        (gen7 != null ? ' · Avg ' + (gen7 / 7).toFixed(1) + '/day' : '');
+      document.getElementById('kpi_cons').innerText = (cons7 != null ? cons7 : '--') + ' kWh';
+      document.getElementById('kpi_cons_sub').innerText =
+        cons7 != null ? ('Per day: ' + (cons7 / 7).toFixed(1) + ' kWh') : 'Per day: --';
+      document.getElementById('kpi_net').innerText =
+        (net != null ? ((net >= 0 ? '+' : '') + net) : '--') + ' kWh';
+      document.getElementById('kpi_net_sub').innerText =
+        net == null ? 'Export / import' : (net >= 0 ? 'Likely export to grid' : 'Need more from grid');
+      const totalCo2 = d.total_carbon_saved_kg ?? 0;
+      document.getElementById('kpi_co2').innerText = totalCo2 + ' kg';
+      document.getElementById('kpi_co2_sub').innerText =
+        '≈ ' + treesFromCo2(totalCo2).toFixed(2) + ' trees (7d)';
+      const lifeTrees = d.lifetime_trees != null ? Number(d.lifetime_trees) : treesFromCo2(totalCo2);
+      const lifeCo2 = d.lifetime_carbon_kg != null ? Number(d.lifetime_carbon_kg) : totalCo2;
+      document.getElementById('kpi_trees_life').innerText = '≈ ' + lifeTrees.toFixed(2);
+      document.getElementById('kpi_trees_sub').innerText =
+        'Lifetime CO₂: ' + lifeCo2.toFixed(1) + ' kg';
+      if (d.insights) {
+        // Soiling KPI: status + tip only (no confidence, no blend, no today-loss line)
+        document.getElementById('kpi_soiling').innerText = d.insights.soiling_status || '--';
+        const lossEl = document.getElementById('kpi_soiling_loss');
+        if (lossEl) lossEl.innerText = '';
+        const tip = document.getElementById('kpi_cleaning_tip');
+        if (tip) tip.innerText = d.insights.cleaning_tip || '';
+      }
+      lastForecastPayload = d;
+      cachedData = d.daily_forecasts || [];
+      renderCards();
+      if (cachedData.length) renderDay(0);
+    }
+    function daySoilingStats(day) {
+      // Prefer server values (same formula as KPI / forecast API)
+      if (day.soiling_loss_pct != null || day.soiling_loss_kwh != null) {
+        return {
+          avg: Number(day.soiling_loss_pct || 0),
+          lossKwh: Number(day.soiling_loss_kwh || 0)
+        };
+      }
+      const soils = (day.hourly && day.hourly.soiling) ? day.hourly.soiling : [];
+      let avg = 0;
+      if (soils.length) {
+        let s = 0, n = 0;
+        soils.forEach(function (v) { const x = Number(v); if (!isNaN(x)) { s += x; n++; } });
+        avg = n ? s / n : 0;
+      }
+      const gen = Number(day.total_units_kwh || 0);
+      const frac = Math.min(0.45, Math.max(0, avg / 100));
+      const lossKwh = (frac > 0 && frac < 0.99) ? (gen * frac / (1 - frac)) : 0;
+      return { avg: avg, lossKwh: lossKwh };
+    }
+    function dayConfidence(day) {
+      // Server confidence from best physics/ML blend for that day
+      if (day.confidence_pct != null && !isNaN(Number(day.confidence_pct))) {
+        return Math.max(50, Math.min(96, Math.round(Number(day.confidence_pct))));
+      }
+      let c = 88;
+      const rain = Number(day.rain_prob || 0);
+      const cloud = Number(day.cloud_avg || 0);
+      if (rain >= 70) c -= 10;
+      else if (rain >= 50) c -= 6;
+      else if (rain >= 30) c -= 3;
+      if (cloud >= 80) c -= 4;
+      else if (cloud >= 55) c -= 2;
+      return Math.max(65, Math.min(95, c));
+    }
+    function renderCards() {
+      const x = document.getElementById('day_cards'); x.innerHTML = '';
+      cachedData.forEach((day, i) => {
+        const bp = Math.round((day.blend_physics != null ? day.blend_physics : 0.8) * 100);
+        const bm = Math.round((day.blend_ml != null ? day.blend_ml : 0.2) * 100);
+        const conf = dayConfidence(day);
+        const soil = daySoilingStats(day);
+        const lo = (day.total_units_p10 != null) ? Number(day.total_units_p10).toFixed(1) : null;
+        const hi = (day.total_units_p90 != null) ? Number(day.total_units_p90).toFixed(1) : null;
+        const gen = Number(day.total_units_kwh || 0).toFixed(1);
+        const peakKw = (day.peak_kw != null) ? Number(day.peak_kw).toFixed(1) : null;
+        const peakTime = day.peak_time || '';
+        const co2 = (day.carbon_saved_kg != null) ? Number(day.carbon_saved_kg).toFixed(1) : null;
+        const dayLabel = ((day.day_name || '').slice(0, 3) + ' · ' + (day.display_date || '')).toUpperCase();
+        // No weather condition text (e.g. "Light drizzle") on cards
+        x.innerHTML +=
+          '<div id="card_' + i + '" onclick="renderDay(' + i + ')" class="day-scroll-card">' +
+            '<div class="text-[10px] md:text-[11px] text-slate-400 font-bold tracking-wide">' + dayLabel + '</div>' +
+            '<div class="day-card-kwh">' + gen + '<span>kWh</span></div>' +
+            (lo && hi
+              ? ('<div class="text-[10px] text-slate-400 mt-1">range ' + lo + '–' + hi + ' kWh'+'</div>')
+              : '') +
+            (peakKw
+              ? ('<div class="text-[10px] text-slate-400 mt-0.5">peak ' + peakKw + ' kW' + (peakTime ? (' @ ' + peakTime) : '') + '</div>')
+              : '') +
+            '<div class="text-[10px] text-blue-400 mt-1">' + '☂ ' + (day.rain_prob != null ? day.rain_prob : '—') + '% · <span class="text-amber-500">' + '🌡 ' + day.temp_min + '–' + day.temp_max + '°</span></div>' +
+            (co2 != null
+              ? ('<div class="text-[10px] text-emerald-400/90 mt-1">🌿 ' + co2 + ' kg CO₂</div>')
+              : '') +
+            '<div class="text-[10px] text-violet-300 mt-1.5 font-semibold">Confidence ' + conf + '%</div>' +
+            '<div class="text-[9px] text-amber-200/80 mt-0.5">Soil ' + soil.avg.toFixed(1) + '% · loss: ' + soil.lossKwh.toFixed(2) + ' kWh</div>' +
+            '<div class="text-[9px] text-slate-500 mt-1">Physics ' + bp+'%' +' + ML ' + bm+'%'+ '</div>' +
+          '</div>';
+      });
+    }
+    function isMobileView() {
+      return window.matchMedia && window.matchMedia('(max-width: 1023px)').matches;
+    }
+    function updateChartReadout(h, idx) {
+      const el = document.getElementById('chart_touch_readout');
+      if (!el || !h || idx == null || idx < 0) return;
+      const t = (h.times || [])[idx] || '--';
+      const pw = Number((h.power || [])[idx] || 0).toFixed(2);
+      const cell = (h.cell_temp || [])[idx];
+      const amb = (h.ambient_temp || [])[idx];
+      const rain = (h.rain_prob || [])[idx];
+      const cloud = (h.cloud || [])[idx];
+      const cond = ((h.condition_emojis || [])[idx] || '') + ' ' + ((h.conditions || [])[idx] || '');
+      el.innerText = t + ' · Solar ' + pw + ' kW · Cell ' + cell + '°C · Air ' + amb +
+        '°C · Rain ' + rain + '% · Cloud ' + cloud + '% · ' + cond.trim();
+    }
+    function bindChartTouch(h) {
+      const gd = document.getElementById('plotly_chart');
+      if (!gd || !window.Plotly) return;
+      gd.on = gd.on || function () {};
+      // Prefer tap/click on mobile — hover is unreliable
+      gd.removeAllListeners && gd.removeAllListeners('plotly_click');
+      gd.removeAllListeners && gd.removeAllListeners('plotly_hover');
+      gd.on('plotly_click', function (ev) {
+        if (!ev || !ev.points || !ev.points.length) return;
+        const p = ev.points[0];
+        const idx = (p.pointIndex != null) ? p.pointIndex : p.pointNumber;
+        updateChartReadout(h, idx);
+      });
+      if (!isMobileView()) {
+        gd.on('plotly_hover', function (ev) {
+          if (!ev || !ev.points || !ev.points.length) return;
+          const p = ev.points[0];
+          const idx = (p.pointIndex != null) ? p.pointIndex : p.pointNumber;
+          updateChartReadout(h, idx);
+        });
+      }
+    }
+    function renderDay(i) {
+      document.querySelectorAll('[id^=card_]').forEach(c => c.classList.remove('is-active'));
+      const card = document.getElementById('card_' + i);
+      if (card) card.classList.add('is-active');
+      const d = cachedData[i];
+      if (!d || !d.hourly) return;
+      const h = d.hourly;
+      const title = (d.day_name || '') + ', ' + (d.display_date || '');
+      document.getElementById('chart_title').innerText = title;
+      const st = document.getElementById('schedule_title');
+      if (st) st.innerText = 'Hourly Schedule — ' + title;
+      const mobile = isMobileView();
+      const fontSize = mobile ? 11 : 13;
+      Plotly.newPlot('plotly_chart', [
+        { x: h.times, y: h.power, type: 'scatter', mode: 'lines+markers',
+          line: { width: mobile ? 2.5 : 3 }, marker: { size: mobile ? 5 : 4 }, name: 'Solar kW' },
+        { x: h.times, y: h.ambient_temp, type: 'scatter', mode: 'lines', yaxis: 'y2',
+          line: { width: 1.5 }, name: 'Ambient' },
+        { x: h.times, y: h.cell_temp, type: 'scatter', mode: 'lines', yaxis: 'y2',
+          line: { width: 1.5 }, name: 'Cell' },
+        { x: h.times, y: h.rain_prob, type: 'scatter', mode: 'lines', yaxis: 'y3',
+          line: { width: 1.2 }, name: 'Rain%' },
+        { x: h.times, y: h.cloud, type: 'scatter', mode: 'lines', yaxis: 'y3',
+          line: { width: 1.2 }, name: 'Cloud%' }
+      ], {
+        paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+        font: { color: '#94a3b8', size: fontSize },
+        margin: { t: mobile ? 36 : 40, b: 40, l: 42, r: mobile ? 36 : 56 },
+        xaxis: { gridcolor: '#1e293b', fixedrange: true },
+        yaxis: { title: 'kW', gridcolor: '#1e293b', fixedrange: true },
+        yaxis2: { overlaying: 'y', side: 'right', showgrid: false, fixedrange: true },
+        yaxis3: { overlaying: 'y', side: 'right', position: 0.97, range: [0, 100],
+          showticklabels: false, showgrid: false, fixedrange: true },
+        legend: { orientation: 'h', y: 1.14, font: { size: fontSize } },
+        // Mobile: closest + click; desktop: unified hover
+        hovermode: mobile ? 'closest' : 'x unified',
+        dragmode: false
+      }, {
+        displayModeBar: false,
+        responsive: true,
+        staticPlot: false,
+        doubleClick: false,
+        scrollZoom: false,
+        displaylogo: false
+      }).then(function () {
+        bindChartTouch(h);
+        // Default readout = peak hour if available
+        let peakIdx = 0;
+        let peak = -1;
+        (h.power || []).forEach(function (v, j) {
+          if (Number(v) > peak) { peak = Number(v); peakIdx = j; }
+        });
+        updateChartReadout(h, peakIdx);
+      });
+      const tb = document.getElementById('table_body'); tb.innerHTML = '';
+      (h.times || []).forEach((t, j) => {
+        tb.innerHTML +=
+          '<tr class="hover:bg-slate-800/50"><td class="px-3 py-3 font-mono text-slate-400">' + t + '</td>' +
+          '<td class="px-3 py-3">' + ((h.condition_emojis || [])[j] || '') + ' ' + ((h.conditions || [])[j] || '') + '</td>' +
+          '<td class="px-3 py-3 font-bold text-amber-400">' + Number(h.power[j] || 0).toFixed(2) + '</td>' +
+          '<td class="px-3 py-3 text-orange-300">' + h.cell_temp[j] + '°C</td>' +
+          '<td class="px-3 py-3 text-blue-300">' + h.ambient_temp[j] + '°C</td>' +
+          '<td class="px-3 py-3 text-sky-400">' + h.rain_prob[j] + '%</td>' +
+          '<td class="px-3 py-3">' + h.rain_mm[j] + '</td>' +
+          '<td class="px-3 py-3">' + h.cloud[j] + '%</td>' +
+          '<td class="px-3 py-3">' + h.wind[j] + '</td>' +
+          '<td class="px-3 py-3 text-emerald-300">' + h.soiling[j] + '%</td>' +
+          '<td class="px-3 py-3 text-violet-300">' + h.poa[j] + '</td></tr>';
+      });
+    }
+  </script>
+</body>
+
+</html>

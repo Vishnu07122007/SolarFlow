@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin | SolarFlow </title>
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 sm:p-6 lg:p-12">
+  <div id="page_loader" class="fixed inset-0 z-[9999] bg-black/55 flex items-center justify-center">
+    <div class="bg-slate-900 border border-slate-600 rounded-2xl px-6 py-5 text-center shadow-2xl">
+      <div class="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+      <div class="text-sm text-amber-300 font-semibold">Loading admin…</div>
+    </div>
+  </div>
+  <div class="max-w-7xl mx-auto space-y-8">
+
+    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-800/80 p-6 sm:p-8 rounded-3xl border border-slate-700/60 shadow-2xl gap-4">
+      <div class="flex items-center gap-4">
+        <div class="w-4 h-4 rounded-full bg-red-500 animate-pulse"></div>
+        <div>
+          <h1 class="text-2xl font-extrabold tracking-tight text-white">Platform <span class="text-red-500">Admin</span></h1>
+          <p class="text-xs text-slate-400 mt-1">Uttar Pradesh fleet · per-user systems · shared UP model</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/profile?role=admin&token={{ token }}" class="px-4 py-2 bg-slate-900 text-xs text-amber-400 font-semibold rounded-2xl border border-slate-700 hover:bg-slate-700 transition">Admin Profile</a>
+        <a href="/logout?role=admin&token={{ token }}" class="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 font-bold rounded-2xl border border-red-500/30 transition">Sign Out</a>
+      </div>
+    </header>
+
+    <form method="GET" action="/admin" class="flex flex-col sm:flex-row gap-4 items-end bg-slate-800/80 p-6 rounded-3xl border border-slate-700/60 shadow-2xl">
+      <input type="hidden" name="token" value="{{ token }}">
+      <div class="w-full sm:w-1/3">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">State</label>
+        <select name="state" class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3.5 text-xs text-slate-200 outline-none focus:border-amber-400">
+          <option value="Uttar Pradesh" selected>Uttar Pradesh</option>
+        </select>
+      </div>
+      <div class="w-full sm:w-1/3 relative" id="admin_district_sdd">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">District</label>
+        <input type="hidden" name="district" id="admin_district_value" value="{{ selected_district or '' }}">
+        <input type="text" id="admin_district_display" autocomplete="off"
+               value="{{ selected_district or '' }}"
+               placeholder="Search district or leave empty for all…"
+               class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3.5 text-xs text-slate-200 outline-none focus:border-amber-400"
+               style="background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%94a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;"
+               onfocus="adminOpenDistrict()"
+               oninput="adminFilterDistrict(this.value)">
+        <div id="admin_district_menu" class="hidden absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 text-xs">
+          <div class="px-4 py-2.5 hover:bg-slate-800 cursor-pointer text-slate-300" data-val="" onmousedown="adminPickDistrict('', 'All districts')">All districts</div>
+          {% for d in up_districts %}
+          <div class="px-4 py-2.5 hover:bg-slate-800 cursor-pointer text-slate-200 border-t border-slate-800"
+               data-val="{{ d }}" data-label="{{ d }}"
+               onmousedown="adminPickDistrict('{{ d }}', '{{ d }}')">{{ d }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      <script>
+        function adminOpenDistrict() {
+          document.getElementById('admin_district_menu').classList.remove('hidden');
+          adminFilterDistrict(document.getElementById('admin_district_display').value);
+        }
+        function adminFilterDistrict(q) {
+          var menu = document.getElementById('admin_district_menu');
+          menu.classList.remove('hidden');
+          q = (q || '').trim().toLowerCase();
+          var items = menu.querySelectorAll('[data-val]');
+          items.forEach(function (el) {
+            var lab = (el.getAttribute('data-label') || el.getAttribute('data-val') || el.textContent || '').toLowerCase();
+            var isAll = el.getAttribute('data-val') === '';
+            el.style.display = (!q || isAll || lab.indexOf(q) !== -1) ? '' : 'none';
+          });
+        }
+        function adminPickDistrict(val, label) {
+          document.getElementById('admin_district_value').value = val || '';
+          document.getElementById('admin_district_display').value = val ? label : '';
+          document.getElementById('admin_district_menu').classList.add('hidden');
+        }
+        document.addEventListener('click', function (e) {
+          var root = document.getElementById('admin_district_sdd');
+          if (root && !root.contains(e.target)) {
+            document.getElementById('admin_district_menu').classList.add('hidden');
+          }
+        });
+      </script>
+      <div class="w-full sm:w-auto flex gap-3">
+        <button type="submit" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold px-6 py-3.5 rounded-2xl text-sm">Apply</button>
+        <a href="/admin?token={{ token }}" class="bg-slate-700 hover:bg-slate-600 text-white font-extrabold px-6 py-3.5 rounded-2xl text-sm text-center">Clear</a>
+      </div>
+    </form>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-4">
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">Systems (filter)</p>
+        <h3 class="text-2xl font-extrabold text-white mt-1">{{ total_users }}</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">Registered users</p>
+        <h3 class="text-2xl font-extrabold text-white mt-1">{{ n_registered_users }}</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">Calibrated users</p>
+        <h3 class="text-2xl font-extrabold text-violet-400 mt-1">{{ n_calibrated_users }}</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">Fleet DC (page)</p>
+        <h3 class="text-2xl font-extrabold text-amber-400 mt-1">{{ total_capacity }} kW</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">Fleet AC (page)</p>
+        <h3 class="text-2xl font-extrabold text-sky-400 mt-1">{{ total_ac_capacity }} kW</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">Today gen (page)</p>
+        <h3 class="text-2xl font-extrabold text-emerald-400 mt-1">{{ total_today }} kWh</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">7D gen (page)</p>
+        <h3 class="text-2xl font-extrabold text-blue-400 mt-1">{{ total_generation }} kWh</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">Today CO₂</p>
+        <h3 class="text-2xl font-extrabold text-teal-300 mt-1">{{ total_today_carbon }} kg</h3>
+      </div>
+      <div class="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/60">
+        <p class="text-[10px] font-bold text-slate-400 uppercase">7D CO₂</p>
+        <h3 class="text-2xl font-extrabold text-teal-500 mt-1">{{ total_7d_carbon }} kg</h3>
+      </div>
+    </div>
+
+    <div class="bg-slate-800/80 rounded-3xl border border-slate-700/60 p-6 shadow-2xl">
+      <h3 class="font-bold text-white text-sm uppercase tracking-wider mb-4">UP model status</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+        <div class="bg-slate-900/60 p-4 rounded-2xl border {% if model_info.available %}border-emerald-500/40{% else %}border-rose-500/40{% endif %}">
+          <p class="text-slate-400">Model file</p>
+          <p class="font-bold mt-1 {% if model_info.available %}text-emerald-400{% else %}text-rose-400{% endif %}">
+            {% if model_info.available %}Present · models/up/modelfile.pkl{% else %}Missing — physics-only{% endif %}
+          </p>
+        </div>
+        <div class="bg-slate-900/60 p-4 rounded-2xl border border-slate-700">
+          <p class="text-slate-400">Hold-out R²</p>
+          <p class="font-bold text-amber-400 mt-1">
+            {% if model_info.r2 is not none %}{{ '%.4f'|format(model_info.r2) }}{% else %}—{% endif %}
+          </p>
+        </div>
+        <div class="bg-slate-900/60 p-4 rounded-2xl border border-slate-700">
+          <p class="text-slate-400">MAE (5 kW eq.)</p>
+          <p class="font-bold text-amber-400 mt-1">
+            {% if model_info.mae is not none %}{{ '%.4f'|format(model_info.mae) }}{% else %}—{% endif %}
+          </p>
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-500 mt-3">
+        Shared default model for all users. Personal accuracy uses each user’s calibration_slope.
+        {% if model_info.note %} · {{ model_info.note }}{% endif %}
+      </p>
+    </div>
+
+    <div class="bg-slate-800/80 rounded-3xl border border-slate-700/60 shadow-2xl overflow-hidden">
+      <div class="p-6 bg-slate-900/50 border-b border-slate-700/60 flex justify-between items-center">
+        <h3 class="font-bold text-white text-sm uppercase tracking-wider">Fleet registry</h3>
+        <span class="text-xs text-slate-400">Page {{ pagination.page }} of {{ pagination.pages or 1 }}</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs whitespace-nowrap">
+          <thead class="bg-slate-900 text-slate-400 font-semibold border-b border-slate-700/60">
+            <tr>
+              <th class="px-3 py-3">User</th>
+              <th class="px-3 py-3">Location</th>
+              <th class="px-3 py-3">Lat, Lon</th>
+              <th class="px-3 py-3 text-amber-400">Panels (DC)</th>
+              <th class="px-3 py-3 text-sky-400">Inverter (AC)</th>
+              <th class="px-3 py-3">DC kW</th>
+              <th class="px-3 py-3">AC kW</th>
+              <th class="px-3 py-3">Tilt / Az</th>
+              <th class="px-3 py-3">Load / Year</th>
+              <th class="px-3 py-3 text-violet-300">Calib ×</th>
+              <th class="px-3 py-3">Cal days</th>
+              <th class="px-3 py-3 text-emerald-400">Today kWh</th>
+              <th class="px-3 py-3 text-blue-400">7D kWh</th>
+              <th class="px-3 py-3">Last sync</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-700/40 text-slate-300">
+            {% if fleet|length == 0 %}
+            <tr><td colspan="14" class="px-6 py-8 text-center text-slate-500 italic">No systems match filter.</td></tr>
+            {% else %}
+              {% for sys in fleet %}
+              <tr class="hover:bg-slate-700/30 transition">
+                <td class="px-3 py-3">
+                  <div class="font-semibold text-white">{{ sys.user_name }}</div>
+                  <div class="text-[10px] text-slate-500">{{ sys.email }}</div>
+                </td>
+                <td class="px-3 py-3 font-semibold max-w-[180px] truncate" title="{{ sys.location }}">{{ sys.location }}</td>
+                <td class="px-3 py-3 font-mono text-[10px] text-slate-400">{{ sys.coords }}</td>
+                <td class="px-3 py-3 max-w-[160px] truncate" title="{{ sys.hardware }}">{{ sys.hardware }}</td>
+                <td class="px-3 py-3 max-w-[160px] truncate text-sky-300" title="{{ sys.inverter }}">{{ sys.inverter }}</td>
+                <td class="px-3 py-3 font-bold text-amber-400">{{ sys.dc_kw }}</td>
+                <td class="px-3 py-3 font-bold text-sky-400">{{ sys.ac_kw }}</td>
+                <td class="px-3 py-3">{{ sys.tilt }}° / {{ sys.azimuth }}°</td>
+                <td class="px-3 py-3">{{ sys.load_kwh }} kWh · {{ sys.year }}</td>
+                <td class="px-3 py-3 font-bold text-violet-300">{{ sys.calibration_slope }}</td>
+                <td class="px-3 py-3">{{ sys.calibrated_days }}</td>
+                <td class="px-3 py-3 font-bold text-emerald-400">{{ sys.today_gen }}</td>
+                <td class="px-3 py-3 font-bold text-blue-400">{{ sys.gen_7d }}</td>
+                <td class="px-3 py-3 text-[10px] font-mono text-slate-500">{{ sys.last_updated }}</td>
+              </tr>
+              {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <div class="p-6 bg-slate-900/50 border-t border-slate-700/60 flex justify-end gap-3">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('admin_portal', page=pagination.prev_num, state=selected_state, district=selected_district, token=token) }}"
+           class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs text-white font-bold rounded-xl border border-slate-600">Previous</a>
+        {% else %}
+        <span class="px-4 py-2 bg-slate-900 text-xs text-slate-600 font-bold rounded-xl border border-slate-800">Previous</span>
+        {% endif %}
+        {% if pagination.has_next %}
+        <a href="{{ url_for('admin_portal', page=pagination.next_num, state=selected_state, district=selected_district, token=token) }}"
+           class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs text-white font-bold rounded-xl border border-slate-600">Next</a>
+        {% else %}
+        <span class="px-4 py-2 bg-slate-900 text-xs text-slate-600 font-bold rounded-xl border border-slate-800">Next</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      function hide() {
+        var el = document.getElementById('page_loader');
+        if (el) el.classList.add('hidden');
+      }
+      function show(msg) {
+        var el = document.getElementById('page_loader');
+        if (!el) return;
+        var t = el.querySelector('.text-sm');
+        if (t && msg) t.innerText = msg;
+        el.classList.remove('hidden');
+      }
+      window.addEventListener('load', hide);
+      document.addEventListener('click', function (e) {
+        var a = e.target.closest && e.target.closest('a[href]');
+        if (a && (a.getAttribute('href') || '').indexOf('/admin') === 0) show('Loading…');
+      });
+      document.querySelectorAll('form').forEach(function (f) {
+        f.addEventListener('submit', function () { show('Applying filters…'); });
+      });
+    })();
+  </script>
+</body>
+</html>
