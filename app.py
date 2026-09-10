@@ -78,12 +78,23 @@ if not _db_url:
     _db_url = f"sqlite:///{_DEFAULT_DB}"
 app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-# Sessions (HTTPS on Render)
+# Durable browser session (14 days). Cookie is signed client-side — SECRET_KEY must stay stable.
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-if os.getenv("SESSION_COOKIE_SECURE", "1").strip() in ("1", "true", "yes"):
-    app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_NAME"] = "solarflow_session"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=14)
+app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+# Secure cookies only on HTTPS (Render). Local HTTP: set SESSION_COOKIE_SECURE=0 in .env
+_secure = (os.getenv("SESSION_COOKIE_SECURE") or "").strip().lower()
+if _secure in ("1", "true", "yes", "on"):
+    app.config["SESSION_COOKIE_SECURE"] = True
+elif _secure in ("0", "false", "no", "off"):
+    app.config["SESSION_COOKIE_SECURE"] = False
+else:
+    # Auto: secure when not running Flask debug
+    app.config["SESSION_COOKIE_SECURE"] = not (
+        (os.getenv("FLASK_DEBUG") or "").strip() in ("1", "true", "yes")
+    )
 
 db = SQLAlchemy(app)
 IST_TZ = pytz.timezone("Asia/Kolkata")
@@ -232,7 +243,7 @@ with app.app_context():
 
 
 # ---------------------------------------------------------------
-# Auth helpers — signed token + session binding + DB role truth
+# Auth helpers — signed token + durable session + dual role slots
 # ---------------------------------------------------------------
 AUTH_TOKEN_MAX_AGE = int(os.getenv("AUTH_TOKEN_MAX_AGE", str(60 * 60 * 24 * 14)))  # 14 days
 
@@ -245,18 +256,73 @@ def _role_for_user(u) -> str:
     return "admin" if (u and getattr(u, "is_admin", False)) else "user"
 
 
+def _slot_key(role: str) -> str:
+    return "auth_admin" if role == "admin" else "auth_user"
+
+
+def _read_slot(role: str):
+    data = session.get(_slot_key(role))
+    if not isinstance(data, dict):
+        return None
+    token = data.get("token")
+    uid = data.get("uid")
+    if not token or not uid:
+        return None
+    return {"token": token, "uid": int(uid), "role": role}
+
+
+def _write_slot(role: str, token: str, uid: int) -> None:
+    session[_slot_key(role)] = {"token": token, "uid": int(uid), "role": role}
+    session.permanent = True
+
+
+def _clear_slot(role: str) -> None:
+    session.pop(_slot_key(role), None)
+
+
+def _sync_active_from_slots(prefer_user: bool = True) -> None:
+    """
+    Keep legacy keys (auth_token/user_id/role) in sync with preferred slot.
+    Prefer user when both admin and user sessions exist on same browser.
+    """
+    user_slot = _read_slot("user")
+    admin_slot = _read_slot("admin")
+    chosen = None
+    if prefer_user and user_slot:
+        chosen = user_slot
+    elif admin_slot:
+        chosen = admin_slot
+    elif user_slot:
+        chosen = user_slot
+
+    if not chosen:
+        session.pop("auth_token", None)
+        session.pop("user_id", None)
+        session.pop("role", None)
+        session.pop("active_role", None)
+        return
+
+    session["auth_token"] = chosen["token"]
+    session["user_id"] = chosen["uid"]
+    session["role"] = chosen["role"]
+    session["active_role"] = chosen["role"]
+    session.permanent = True
+
+
 def issue_auth_session(u) -> str:
-    """Create signed token and bind it to server session. Clears prior auth keys."""
+    """
+    Create signed token and bind to the matching role slot.
+    Does NOT wipe the other role (admin + user can both stay signed in).
+    Active portal prefers user when both exist.
+    """
     role = _role_for_user(u)
     token = _auth_serializer().dumps({"uid": u.user_id, "role": role})
-    # Drop any legacy loose keys
+    # Drop ancient loose keys only
     for k in list(session.keys()):
         if k.startswith("user_token_") or k.startswith("admin_token_"):
             session.pop(k, None)
-    session.clear()  # prevent role mixing in same browser session
-    session["auth_token"] = token
-    session["user_id"] = u.user_id
-    session["role"] = role
+    _write_slot(role, token, u.user_id)
+    _sync_active_from_slots(prefer_user=True)
     session.permanent = True
     return token
 
@@ -266,53 +332,113 @@ def _extract_request_token():
     if not token and request.method in ("POST", "PUT", "PATCH"):
         body = request.get_json(silent=True) or {}
         token = body.get("token")
+    # Durable login: fall back to session token so / without ?token= still works
+    if not token:
+        token = session.get("auth_token")
     return token
 
 
-def current_user_from_token(token=None):
-    """
-    Strict auth:
-    1) Token must be present and cryptographically signed
-    2) Token must match server session binding
-    3) Session user_id / role must match token payload
-    4) DB is_admin is source of truth (must match role)
-    No fallback to 'any token in session'.
-    """
-    token = token or _extract_request_token()
+def _validate_token_against_session(token: str):
+    """Return (user, role, token) or (None, None, None)."""
     if not token:
-        return None
-
-    # Session binding — token alone is not enough
-    if session.get("auth_token") != token:
-        return None
-
+        return None, None, None
     try:
         data = _auth_serializer().loads(token, max_age=AUTH_TOKEN_MAX_AGE)
     except SignatureExpired:
-        return None
+        return None, None, None
     except BadSignature:
-        return None
+        return None, None, None
     except Exception:
-        return None
+        return None, None, None
 
     uid = data.get("uid")
     role = data.get("role")
     if not uid or role not in ("admin", "user"):
-        return None
-    if session.get("user_id") != uid or session.get("role") != role:
-        return None
+        return None, None, None
 
-    u = db.session.get(User, uid)
+    # Token must match the stored slot for that role (or active legacy binding)
+    slot = _read_slot(role)
+    if slot and slot.get("token") == token and int(slot.get("uid")) == int(uid):
+        pass
+    elif session.get("auth_token") == token and int(session.get("user_id") or 0) == int(uid):
+        # migrate legacy single-slot session into dual slots
+        _write_slot(role, token, uid)
+    else:
+        return None, None, None
+
+    u = db.session.get(User, int(uid))
     if not u:
-        return None
+        return None, None, None
 
-    # DB role wins — prevents privilege escalation if session/token was tampered
     expected = _role_for_user(u)
     if role != expected:
+        return None, None, None
+    return u, role, token
+
+
+def current_user_from_token(token=None):
+    """
+    Auth rules:
+    1) Prefer explicit token from URL/body when present
+    2) Else restore from durable session (prefer user over admin)
+    3) Token must match session slot for that role
+    4) DB is_admin is source of truth
+    """
+    explicit = token if token is not None else (
+        request.args.get("token") or request.form.get("token")
+    )
+    if explicit is None and request.method in ("POST", "PUT", "PATCH"):
+        body = request.get_json(silent=True) or {}
+        explicit = body.get("token")
+
+    # 1) Explicit token path
+    if explicit:
+        u, role, tok = _validate_token_against_session(explicit)
+        if u:
+            # Activate this role for subsequent navigations without ?token=
+            session["auth_token"] = tok
+            session["user_id"] = u.user_id
+            session["role"] = role
+            session["active_role"] = role
+            session.permanent = True
+            return u
         return None
-    if session.get("role") != expected:
-        return None
-    return u
+
+    # 2) Session restore — prefer user when both slots valid
+    _sync_active_from_slots(prefer_user=True)
+    for role in ("user", "admin"):
+        slot = _read_slot(role)
+        if not slot:
+            continue
+        u, r, tok = _validate_token_against_session(slot["token"])
+        if u:
+            session["auth_token"] = tok
+            session["user_id"] = u.user_id
+            session["role"] = r
+            session["active_role"] = r
+            session.permanent = True
+            return u
+        _clear_slot(role)
+
+    # 3) Legacy single binding
+    legacy = session.get("auth_token")
+    if legacy:
+        u, r, tok = _validate_token_against_session(legacy)
+        if u:
+            return u
+
+    return None
+
+
+def session_token_for(u) -> str:
+    """Token string for template links (role slot)."""
+    if not u:
+        return session.get("auth_token") or ""
+    role = _role_for_user(u)
+    slot = _read_slot(role)
+    if slot and slot.get("token"):
+        return slot["token"]
+    return session.get("auth_token") or ""
 
 
 def require_login(role=None):
@@ -325,7 +451,10 @@ def require_login(role=None):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             token = _extract_request_token()
-            u = current_user_from_token(token)
+            u = current_user_from_token(token if token else None)
+            # If token missing, still try pure session restore
+            if not u:
+                u = current_user_from_token(None)
             wants_json = (
                 request.path.startswith("/api/")
                 or request.accept_mimetypes.best == "application/json"
@@ -336,16 +465,27 @@ def require_login(role=None):
                     return jsonify({"error": "Unauthorized", "code": "auth_required"}), 401
                 return redirect(url_for("login"))
 
+            tok = session_token_for(u)
             if role == "admin":
                 if not u.is_admin:
                     if wants_json:
                         return jsonify({"error": "Admin only", "code": "admin_required"}), 403
-                    return redirect(url_for("index", token=token) if token else url_for("login"))
+                    # Prefer user home when a user session exists
+                    user_slot = _read_slot("user")
+                    if user_slot:
+                        return redirect(url_for("index", token=user_slot["token"]))
+                    return redirect(url_for("login"))
             elif role == "user":
                 if u.is_admin:
                     if wants_json:
                         return jsonify({"error": "User portal only", "code": "user_only"}), 403
-                    return redirect(url_for("admin_portal", token=token) if token else url_for("login"))
+                    # If a normal user session also exists, open user dashboard instead
+                    user_slot = _read_slot("user")
+                    if user_slot:
+                        uu, _, ut = _validate_token_against_session(user_slot["token"])
+                        if uu and not uu.is_admin:
+                            return redirect(url_for("index", token=ut))
+                    return redirect(url_for("admin_portal", token=tok) if tok else url_for("login"))
 
             return fn(*args, **kwargs)
         return wrapper
@@ -1581,8 +1721,24 @@ def favicon():
 # ---------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    # Already signed in? Prefer user portal when both roles exist.
+    if request.method == "GET":
+        u = current_user_from_token(None)
+        if u:
+            t = session_token_for(u)
+            if u.is_admin:
+                # Only go admin if no normal user session is active
+                user_slot = _read_slot("user")
+                if user_slot:
+                    uu, _, ut = _validate_token_against_session(user_slot["token"])
+                    if uu and not uu.is_admin:
+                        return redirect(url_for("index", token=ut))
+                return redirect(url_for("admin_portal", token=t))
+            return redirect(url_for("index", token=t))
+
     if request.method == "POST":
-        u = User.query.filter_by(email=request.form.get("email")).first()
+        email = (request.form.get("email") or "").strip().lower()
+        u = User.query.filter_by(email=email).first()
         if u and check_password_hash(u.password_hash, request.form.get("password")):
             t = issue_auth_session(u)
             if u.is_admin:
@@ -1662,7 +1818,23 @@ def forgot_password():
 
 @app.route("/logout")
 def logout():
-    # Full session wipe — role query param cannot leave residual access
+    """
+    Logout current role only if ?role=user|admin is given and that slot exists;
+    otherwise clear entire session.
+    """
+    role = (request.args.get("role") or "").strip().lower()
+    if role in ("user", "admin") and _read_slot(role):
+        _clear_slot(role)
+        _sync_active_from_slots(prefer_user=True)
+        # If the other role remains, send them there
+        other = current_user_from_token(None)
+        if other:
+            t = session_token_for(other)
+            if other.is_admin:
+                return redirect(url_for("admin_portal", token=t))
+            return redirect(url_for("index", token=t))
+        session.clear()
+        return redirect(url_for("login"))
     session.clear()
     return redirect(url_for("login"))
 
@@ -1670,8 +1842,8 @@ def logout():
 @app.route("/")
 @require_login(role="user")
 def index():
-    token = _extract_request_token()
-    u = current_user_from_token(token)
+    u = current_user_from_token(None)
+    token = session_token_for(u) if u else (_extract_request_token() or "")
     return render_template(
         "index.html",
         today_date=datetime.now(IST_TZ).strftime("%Y-%m-%d"),
@@ -1921,8 +2093,8 @@ def backfill_user_history(u, max_gap_days: int = 90) -> int:
 @app.route("/history")
 @require_login(role="user")
 def history_page():
-    token = _extract_request_token()
-    u = current_user_from_token(token)
+    u = current_user_from_token(None)
+    token = session_token_for(u) if u else ""
     # Backfill any past days missed while user was offline
     try:
         backfill_user_history(u, max_gap_days=90)
@@ -2033,8 +2205,8 @@ def history_page():
 @app.route("/profile", methods=["GET", "POST"])
 @require_login()  # admin or user may open own profile
 def profile():
-    token = _extract_request_token()
-    u = current_user_from_token(token)
+    u = current_user_from_token(None)
+    token = session_token_for(u) if u else ""
     if request.method == "POST":
         err = None
         # Name: both admin and user can update display name
@@ -2936,8 +3108,8 @@ def history_export():
 @app.route("/admin")
 @require_login(role="admin")
 def admin_portal():
-    token = _extract_request_token()
-    u = current_user_from_token(token)
+    u = current_user_from_token(None)
+    token = session_token_for(u) if u else ""
     state = request.args.get("state", "") or UP_STATE_NAME
     district = request.args.get("district", "")
     if state and not is_up_state(state):
