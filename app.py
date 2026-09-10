@@ -58,22 +58,27 @@ app.jinja_loader = ChoiceLoader([FileSystemLoader(d) for d in _template_search])
 
 app.secret_key = os.getenv("SECRET_KEY", "solarflow_secure_key_change_this_in_production")
 # Admin credentials — set only in .env (never hardcode in source)
-ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL")).strip().lower()
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
-ADMIN_NAME = (os.getenv("ADMIN_NAME")).strip()
+ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL") or "admin@solarflow.com").strip().lower()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD") or ""
+ADMIN_NAME = (os.getenv("ADMIN_NAME") or "Platform Administrator").strip()
 # When "1"/"true": on startup, sync admin email/password from .env (easy rotate).
 # Set ADMIN_SYNC=0 after first deploy if you change password only in the UI.
 ADMIN_SYNC = (os.getenv("ADMIN_SYNC") or "1").strip().lower() in ("1", "true", "yes", "on")
 
-# SQLite under instance/ (persistent on PythonAnywhere home disk)
+# Database: SQLite default; on Render use Postgres via DATABASE_URL.
+# Free Render disk is ephemeral — SQLite is wiped on redeploy/restart.
 _INSTANCE_DIR = os.path.join(_BASE_DIR, "instance")
 os.makedirs(_INSTANCE_DIR, exist_ok=True)
 _DEFAULT_DB = os.path.join(_INSTANCE_DIR, "solarflow_up.db")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL", f"sqlite:///{_DEFAULT_DB}"
-)
+_db_url = (os.getenv("DATABASE_URL") or "").strip()
+if _db_url.startswith("postgres://"):
+    # SQLAlchemy needs postgresql:// (Render may give postgres://)
+    _db_url = "postgresql://" + _db_url[len("postgres://") :]
+if not _db_url:
+    _db_url = f"sqlite:///{_DEFAULT_DB}"
+app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-# Sessions (PythonAnywhere serves HTTPS on *.pythonanywhere.com)
+# Sessions (HTTPS on Render)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 if os.getenv("SESSION_COOKIE_SECURE", "1").strip() in ("1", "true", "yes"):
