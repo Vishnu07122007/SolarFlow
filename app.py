@@ -352,10 +352,52 @@ def require_login(role=None):
     return decorator
 
 
-def api_get_json(url, params=None, timeout=20):
-    r = requests.get(url, params=params, timeout=timeout, headers=OSM_HEADERS)
-    r.raise_for_status()
-    return r.json()
+def api_get_json(url, params=None, timeout=25, retries=6):
+    """
+    GET JSON with aggressive retries on 429 / 503 (Open-Meteo free tier).
+    Does not drop variables — only waits and retries.
+    """
+    last_err = None
+    headers = dict(OSM_HEADERS or {})
+    headers["User-Agent"] = "SolarFlow-UP/1.0 (render; residential-forecast)"
+    # Optional paid/higher-limit Open-Meteo key
+    api_key = (os.getenv("OPEN_METEO_API_KEY") or "").strip()
+    params = dict(params or {})
+    if api_key and "apikey" not in params and "apikey=" not in (url or ""):
+        params["apikey"] = api_key
+
+    for attempt in range(max(1, int(retries))):
+        try:
+            r = requests.get(url, params=params or None, timeout=timeout, headers=headers)
+            if r.status_code in (429, 503):
+                wait = min(2.0 * (2 ** attempt), 45.0)
+                try:
+                    ra = r.headers.get("Retry-After")
+                    if ra:
+                        wait = max(wait, min(float(ra), 60.0))
+                except Exception:
+                    pass
+                last_err = RuntimeError(f"HTTP {r.status_code} rate limited (attempt {attempt + 1})")
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.Timeout as e:
+            last_err = e
+            time.sleep(min(2.0 * (attempt + 1), 20.0))
+            continue
+        except requests.exceptions.RequestException as e:
+            last_err = e
+            # Don't retry pure 4xx other than 429
+            try:
+                code = e.response.status_code if e.response is not None else None
+                if code and 400 <= code < 500 and code != 429:
+                    break
+            except Exception:
+                pass
+            time.sleep(min(1.5 * (2 ** attempt), 20.0))
+            continue
+    raise RuntimeError(f"API request failed after retries: {last_err}")
 
 
 def safe_int(value, default=0):
@@ -553,9 +595,12 @@ def adaptive_blend_weights_day(day_frame, model_used: bool):
     return _blend_from_cloud_rain(cloud, rain)
 
 
-# Server forecast cache (15 min) — same idea as production SolarFlow
+# Server forecast cache (full API response, 15 min)
 _FORECAST_CACHE: dict = {}
 _FORECAST_CACHE_TTL = 900
+# Raw Open-Meteo weather bundle cache by location (reduces 429 without dropping AQ)
+_WEATHER_BUNDLE_CACHE: dict = {}
+_WEATHER_BUNDLE_TTL = 1200  # 20 minutes
 
 
 def _forecast_cache_key(payload: dict) -> str:
@@ -587,8 +632,16 @@ def _store_forecast_cache(key: str, data: dict) -> None:
             _FORECAST_CACHE.pop(k, None)
 
 
+def _geo_weather_key(lat: float, lon: float) -> str:
+    # ~1 km grid — same neighborhood reuses weather + AQ
+    return f"{round(float(lat), 2):.2f},{round(float(lon), 2):.2f}"
+
+
 def fetch_forecast_weather(lat: float, lon: float) -> dict:
-    """Open-Meteo with model fallbacks (ecmwf → gfs → best_match)."""
+    """
+    Open-Meteo 7-day hourly forecast (full variable set).
+    One primary request; second model only if first fully fails.
+    """
     hourly = (
         "temperature_2m,relativehumidity_2m,relative_humidity_2m,"
         "apparent_temperature,dew_point_2m,"
@@ -602,16 +655,105 @@ def fetch_forecast_weather(lat: float, lon: float) -> dict:
         f"&forecast_days=7&timezone=Asia%2FKolkata&hourly={hourly}"
     )
     last_err = None
-    for model in ("ecmwf_ifs025", "gfs_seamless", "best_match"):
+    for model in ("best_match", "gfs_seamless"):
         try:
-            data = api_get_json(base + f"&models={model}", timeout=30)
+            # Default Open-Meteo ensemble selection — do not force models=best_match
+            # on the first try (that path was rate-limiting harder).
+            url = base if model == "best_match" else (base + f"&models={model}")
+            data = api_get_json(url, timeout=40, retries=6)
             if data.get("hourly") and data["hourly"].get("time"):
                 data["_model_used"] = model
                 return data
         except Exception as e:
             last_err = e
+            time.sleep(3.0)
             continue
-    raise RuntimeError(f"Open-Meteo weather failed: {last_err}")
+    raise RuntimeError(
+        "Weather service is busy (Open-Meteo rate limit). "
+        f"Wait 30–60 seconds and try again. Detail: {last_err}"
+    )
+
+
+def fetch_air_quality(lat: float, lon: float) -> dict:
+    """Full AQ payload for soiling (pm10, pm2.5, dust, european_aqi). Retries hard."""
+    url = (
+        f"https://air-quality-api.open-meteo.com/v1/air-quality?"
+        f"latitude={lat}&longitude={lon}&forecast_days=7&timezone=Asia%2FKolkata"
+        f"&hourly=pm10,pm2_5,european_aqi,dust"
+    )
+    return api_get_json(url, timeout=35, retries=6)
+
+
+def fetch_hist_precip(lat: float, lon: float, days: int = 21) -> pd.DataFrame | None:
+    """Recent precipitation archive for soiling warm-start."""
+    end = datetime.now(IST_TZ).date() - timedelta(days=1)
+    start = end - timedelta(days=max(3, int(days) - 1))
+    url = (
+        f"https://archive-api.open-meteo.com/v1/archive?"
+        f"latitude={lat}&longitude={lon}"
+        f"&start_date={start.isoformat()}&end_date={end.isoformat()}"
+        f"&hourly=precipitation&timezone=Asia%2FKolkata"
+    )
+    hist_json = api_get_json(url, timeout=35, retries=5)
+    hist_df = pd.DataFrame(hist_json.get("hourly", {}))
+    if hist_df.empty:
+        return None
+    hist_df["time"] = pd.to_datetime(hist_df["time"])
+    return hist_df.set_index("time")
+
+
+def fetch_weather_bundle(lat: float, lon: float) -> tuple:
+    """
+    Fetch forecast + air quality + hist precip sequentially (with spacing).
+    Caches full bundle by geo for 20 min so Refresh does not re-hit APIs.
+    AQ is included — not dropped for rate limits.
+    """
+    key = _geo_weather_key(lat, lon)
+    hit = _WEATHER_BUNDLE_CACHE.get(key)
+    if hit and (time.time() - hit["ts"]) < _WEATHER_BUNDLE_TTL:
+        return hit["weather"], hit["aq"], hit["hist"]
+
+    # 1) Forecast (required)
+    weather = fetch_forecast_weather(lat, lon)
+    time.sleep(1.2)
+
+    # 2) Air quality (required for soiling quality — retry; fail only after retries)
+    aq = None
+    aq_err = None
+    try:
+        aq = fetch_air_quality(lat, lon)
+    except Exception as e:
+        aq_err = e
+        time.sleep(4.0)
+        try:
+            aq = fetch_air_quality(lat, lon)
+        except Exception as e2:
+            aq_err = e2
+    time.sleep(1.0)
+
+    # 3) Archive precip for soiling start state
+    hist = None
+    try:
+        hist = fetch_hist_precip(lat, lon, days=21)
+    except Exception:
+        hist = None
+
+    if aq is None and aq_err is not None:
+        # Still proceed only if weather OK — but surface a soft flag
+        weather["_aq_error"] = str(aq_err)
+
+    _WEATHER_BUNDLE_CACHE[key] = {
+        "ts": time.time(),
+        "weather": weather,
+        "aq": aq,
+        "hist": hist,
+    }
+    if len(_WEATHER_BUNDLE_CACHE) > 128:
+        cutoff = time.time() - _WEATHER_BUNDLE_TTL
+        for k in [k for k, v in list(_WEATHER_BUNDLE_CACHE.items()) if v["ts"] < cutoff]:
+            _WEATHER_BUNDLE_CACHE.pop(k, None)
+
+    return weather, aq, hist
 
 
 def _training_rel_error(package) -> float:
@@ -1411,6 +1553,30 @@ def search_hardware():
         print("Hardware search error:", e)
         return jsonify([])
 # ---------------------------------------------------------------
+# Chrome DevTools probe (ignore noise 404 in logs)
+# ---------------------------------------------------------------
+@app.route("/.well-known/appspecific/com.chrome.devtools.json")
+def chrome_devtools_probe():
+    return ("", 204)
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """Serve favicon from templates/, static/, or project root."""
+    from flask import send_from_directory
+    candidates = [
+        os.path.join(_BASE_DIR, "templates"),
+        os.path.join(_BASE_DIR, "static"),
+        _BASE_DIR,
+    ]
+    for folder in candidates:
+        path = os.path.join(folder, "favicon.ico")
+        if os.path.isfile(path):
+            return send_from_directory(folder, "favicon.ico", mimetype="image/x-icon")
+    return ("", 204)
+
+
+# ---------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
@@ -2076,37 +2242,27 @@ def forecast():
             degradation_pct_per_year=float(p.get("degradation_pct_per_year", 0.5)),
         )
 
-        start = datetime.now(IST_TZ).date()
-        hist_start = start - timedelta(days=30)
-        hist_end = start - timedelta(days=1)
-        try:
-            hurl = (
-                f"https://archive-api.open-meteo.com/v1/archive?"
-                f"latitude={lat}&longitude={lon}"
-                f"&start_date={hist_start}&end_date={hist_end}"
-                f"&hourly=precipitation&timezone=Asia%2FKolkata"
-            )
-            hist_json = api_get_json(hurl, timeout=30)
-            hist_df = pd.DataFrame(hist_json.get("hourly", {}))
-            if not hist_df.empty:
-                hist_df["time"] = pd.to_datetime(hist_df["time"])
-                hist_df = hist_df.set_index("time")
-            else:
-                hist_df = None
-        except Exception:
-            hist_df = None
-
-        # Multi-model Open-Meteo fallback (from production SolarFlow)
-        weather_json = fetch_forecast_weather(lat, lon)
-        aurl = (
-            f"https://air-quality-api.open-meteo.com/v1/air-quality?"
-            f"latitude={lat}&longitude={lon}&forecast_days=7&timezone=Asia%2FKolkata"
-            f"&hourly=pm10,pm2_5,european_aqi,dust"
-        )
-        try:
-            aq_json = api_get_json(aurl)
-        except Exception:
-            aq_json = None
+        # Prefer browser-fetched weather (user IP) to avoid Render shared-IP 429s.
+        # Falls back to server-side Open-Meteo if client did not send a bundle.
+        weather_json = p.get("weather_json") if isinstance(p.get("weather_json"), dict) else None
+        aq_json = p.get("aq_json") if isinstance(p.get("aq_json"), dict) else None
+        hist_df = None
+        hist_payload = p.get("hist_json") if isinstance(p.get("hist_json"), dict) else None
+        if weather_json and weather_json.get("hourly") and weather_json["hourly"].get("time"):
+            weather_json = dict(weather_json)
+            weather_json["_model_used"] = weather_json.get("_model_used") or "client_open_meteo"
+            if hist_payload and hist_payload.get("hourly"):
+                try:
+                    hist_df = pd.DataFrame(hist_payload.get("hourly", {}))
+                    if not hist_df.empty and "time" in hist_df.columns:
+                        hist_df["time"] = pd.to_datetime(hist_df["time"])
+                        hist_df = hist_df.set_index("time")
+                    else:
+                        hist_df = None
+                except Exception:
+                    hist_df = None
+        else:
+            weather_json, aq_json, hist_df = fetch_weather_bundle(lat, lon)
 
         frame = build_hourly_weather(weather_json, aq_json)
         frame, meta = enrich_frame(frame, inputs, hist_df)
@@ -2453,7 +2609,13 @@ def forecast():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        msg = str(e)
+        low = msg.lower()
+        if "429" in low or "rate limit" in low or "rate limited" in low:
+            return jsonify({
+                "error": "Weather service is busy (rate limit). Wait 20–30 seconds and tap Refresh forecast."
+            }), 429
+        return jsonify({"error": msg}), 500
 
 
 def _recompute_calibration_slope(user_id: int) -> float:
