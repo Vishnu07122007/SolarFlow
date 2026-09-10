@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>SolarFlow Dashboard</title>
-  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -408,9 +408,10 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 sm:p-6 lg:p-10 sf-booting">
 
   <div id="global_loader" class="hidden fixed inset-0 z-[9999] bg-black/55 flex items-center justify-center">
-    <div class="bg-slate-900 border border-slate-600 rounded-2xl px-6 py-5 text-center shadow-2xl">
+    <div class="bg-slate-900 border border-slate-600 rounded-2xl px-6 py-5 text-center shadow-2xl max-w-sm mx-4">
       <div class="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
       <div id="loader_msg" class="text-sm text-amber-300 font-semibold">Please wait…</div>
+      <div id="loader_sub" class="text-[11px] text-slate-400 mt-2 leading-relaxed hidden"></div>
     </div>
   </div>
 
@@ -990,12 +991,50 @@
     document.getElementById('installation_year').max = new Date().getFullYear();
     document.getElementById('manual_clean_date').max = new Date().toISOString().split('T')[0];
 
-    function showLoader(msg) {
-      document.getElementById('loader_msg').innerText = msg || 'Please wait…';
+    let _loaderTimer = null;
+    function showLoader(msg, sub) {
+      const m = document.getElementById('loader_msg');
+      const s = document.getElementById('loader_sub');
+      if (m) m.innerText = msg || 'Please wait…';
+      if (s) {
+        if (sub) {
+          s.innerText = sub;
+          s.classList.remove('hidden');
+        } else {
+          s.innerText = '';
+          s.classList.add('hidden');
+        }
+      }
       document.getElementById('global_loader').classList.remove('hidden');
     }
     function hideLoader() {
+      if (_loaderTimer) { clearInterval(_loaderTimer); _loaderTimer = null; }
       document.getElementById('global_loader').classList.add('hidden');
+      const s = document.getElementById('loader_sub');
+      if (s) { s.innerText = ''; s.classList.add('hidden'); }
+    }
+    function startForecastLoader() {
+      const steps = [
+        { msg: 'Fetching weather from your connection…',
+          sub: 'Uses your network (not the server IP) so free Open-Meteo is not shared with other Render apps.' },
+        { msg: 'Loading air quality…',
+          sub: 'PM2.5, dust & AQI for accurate soiling loss.' },
+        { msg: 'Checking recent rain history…',
+          sub: 'Archive precip helps estimate how clean panels are after rain.' },
+        { msg: 'Running physics + ML on server…',
+          sub: 'Blending rooftop physics with the model for each day.' },
+        { msg: 'Almost done…',
+          sub: 'Building hourly schedule, confidence & cards. Keep this tab open.' },
+        { msg: 'Still working…',
+          sub: 'If the weather API is busy we retry automatically (can take up to ~1 min).' }
+      ];
+      let i = 0;
+      showLoader(steps[0].msg, steps[0].sub);
+      if (_loaderTimer) clearInterval(_loaderTimer);
+      _loaderTimer = setInterval(function () {
+        i = Math.min(i + 1, steps.length - 1);
+        showLoader(steps[i].msg, steps[i].sub);
+      }, 4500);
     }
 
     async function loadGoogleMapsScript() {
@@ -1153,10 +1192,10 @@
           document.getElementById('inverter_search').value &&
           +document.getElementById('num_panels').value >= 1;
         if (canAuto) {
-          showLoader('Loading your 7-day forecast…');
-          revealAppShell(); // summary already visible under loader
+          startForecastLoader();
+          revealAppShell();
           await new Promise(function (r) { setTimeout(r, 40); });
-          await executeForecast(); // shows/hides its own loader in finally
+          await executeForecast();
           return;
         }
       } catch (e) { }
@@ -1856,9 +1895,63 @@
       executeForecast();
     }
 
+    /** Browser → Open-Meteo (user IP) avoids Render shared-IP 429. Free. */
+    async function fetchWeatherBundleInBrowser(lat, lon) {
+      const hourly =
+        'temperature_2m,relativehumidity_2m,relative_humidity_2m,apparent_temperature,dew_point_2m,' +
+        'precipitation_probability,precipitation,rain,showers,cloud_cover,visibility,' +
+        'windspeed_10m,wind_gusts_10m,windgusts_10m,surface_pressure,uv_index,sunshine_duration,' +
+        'shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,' +
+        'weathercode,weather_code,is_day,vapour_pressure_deficit';
+      const fUrl =
+        'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+        '&forecast_days=7&timezone=Asia%2FKolkata&hourly=' + encodeURIComponent(hourly);
+      const aUrl =
+        'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lat + '&longitude=' + lon +
+        '&forecast_days=7&timezone=Asia%2FKolkata&hourly=pm10,pm2_5,european_aqi,dust';
+      const end = new Date();
+      end.setDate(end.getDate() - 1);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 20);
+      const iso = function (d) { return d.toISOString().slice(0, 10); };
+      const hUrl =
+        'https://archive-api.open-meteo.com/v1/archive?latitude=' + lat + '&longitude=' + lon +
+        '&start_date=' + iso(start) + '&end_date=' + iso(end) +
+        '&hourly=precipitation&timezone=Asia%2FKolkata';
+
+      async function getJson(url, retries) {
+        let last = null;
+        for (let i = 0; i < (retries || 4); i++) {
+          try {
+            const r = await fetch(url);
+            if (r.status === 429 || r.status === 503) {
+              await new Promise(function (res) { setTimeout(res, 1500 * (i + 1)); });
+              last = new Error('Weather API busy (' + r.status + ')');
+              continue;
+            }
+            if (!r.ok) throw new Error('Weather HTTP ' + r.status);
+            return await r.json();
+          } catch (e) {
+            last = e;
+            await new Promise(function (res) { setTimeout(res, 1000 * (i + 1)); });
+          }
+        }
+        throw last || new Error('Weather fetch failed');
+      }
+
+      const weather_json = await getJson(fUrl, 5);
+      weather_json._model_used = 'client_open_meteo';
+      await new Promise(function (res) { setTimeout(res, 400); });
+      let aq_json = null;
+      try { aq_json = await getJson(aUrl, 4); } catch (e) { aq_json = null; }
+      await new Promise(function (res) { setTimeout(res, 300); });
+      let hist_json = null;
+      try { hist_json = await getJson(hUrl, 3); } catch (e) { hist_json = null; }
+      return { weather_json: weather_json, aq_json: aq_json, hist_json: hist_json };
+    }
+
     async function executeForecast() {
       if (!validateForm()) {
-        // If summary mode but form invalid, force edit
         if (uiMode === 'summary') enterEditMode(true);
         return;
       }
@@ -1866,15 +1959,17 @@
       const rb = document.getElementById('summary_refresh_btn');
       b.innerText = 'Processing…'; b.disabled = true;
       if (rb) { rb.disabled = true; rb.innerText = 'Refreshing…'; }
-      showLoader('Generating 7-day forecast…');
+      startForecastLoader();
+      const lat = +document.getElementById('selected_lat').value;
+      const lon = +document.getElementById('selected_lon').value;
       const payload = {
         token,
         state: document.getElementById('state_select').value,
         district: document.getElementById('district_select').value,
         city_locality: document.getElementById('city_search').value,
         pincode: document.getElementById('pincode_input').value,
-        lat: +document.getElementById('selected_lat').value,
-        lon: +document.getElementById('selected_lon').value,
+        lat: lat,
+        lon: lon,
         brand_model: document.getElementById('panel_search').value,
         inverter_model: document.getElementById('inverter_search').value,
         num_panels: +document.getElementById('num_panels').value,
@@ -1894,6 +1989,20 @@
         degradation_pct_per_year: +document.getElementById('degradation_pct_per_year').value
       };
       try {
+        try {
+          showLoader('Fetching weather from your connection…',
+            'Uses your network (not the server IP) — free, no shared Render rate limit.');
+          const bundle = await fetchWeatherBundleInBrowser(lat, lon);
+          payload.weather_json = bundle.weather_json;
+          payload.aq_json = bundle.aq_json;
+          payload.hist_json = bundle.hist_json;
+        } catch (wxErr) {
+          console.warn('Browser weather failed, server will try:', wxErr);
+          showLoader('Retrying via server…',
+            'Direct weather fetch failed; server will try next.');
+        }
+        showLoader('Running physics + ML on server…',
+          'Weather loaded. Computing generation, soiling and 7-day cards.');
         const r = await fetch('/api/forecast', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
@@ -1901,7 +2010,6 @@
         if (d.error) throw new Error(d.error);
         applyForecastData(d);
         saveForecastCache(d, payload);
-        // After first successful save, prefer compact home for this user
         systemComplete = true;
         if (d.system && d.system.calibration_slope != null) {
           const slope = Number(d.system.calibration_slope);
